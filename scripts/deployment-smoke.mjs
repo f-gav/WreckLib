@@ -73,4 +73,20 @@ const image=await fetch(SUPABASE_URL+'/functions/v1/shared-image',{
 });
 assert.equal(image.status,404,'Invalid guest image share should be denied');
 console.log('OK unauthorized guest image denied:',image.status);
+// Verify anonymous callers cannot invoke privileged stage-3B RPCs.
+for(const [name,payload] of [
+ ['trash_entry',{p_entry_id:'00000000-0000-4000-8000-000000000000'}],
+ ['restore_entry',{p_entry_id:'00000000-0000-4000-8000-000000000000'}],
+ ['list_trash',{p_campaign_id:'00000000-0000-4000-8000-000000000000'}],
+ ['list_campaign_members',{p_campaign_id:'00000000-0000-4000-8000-000000000000'}],
+ ['change_member_role',{p_campaign_id:'00000000-0000-4000-8000-000000000000',p_user_id:'00000000-0000-4000-8000-000000000000',p_role:'master'}]
+]){
+ const resp=await fetch(SUPABASE_URL+'/rest/v1/rpc/'+name,{
+  method:'POST',headers:{apikey:SUPABASE_PUBLISHABLE_KEY,'Content-Type':'application/json'},
+  body:JSON.stringify(payload),signal:AbortSignal.timeout(15000)
+ });
+ assert.ok(resp.status===401||resp.status===403||resp.status===404,
+  'Anonymous caller unexpectedly reached privileged RPC: '+name+' ('+resp.status+')');
+ console.log('OK stage3B anonymous RPC denied:',name,resp.status);
+}
 console.log('Deployment smoke passed. The user must still complete an actual Google sign-in.');
