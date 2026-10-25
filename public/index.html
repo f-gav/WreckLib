@@ -9,18 +9,39 @@
 <title>WreckLib — энциклопедия кампаний</title>
 <link rel="stylesheet" href="./style.css">
 <link rel="stylesheet" href="./wrecktrack-visual.css">
+<link rel="stylesheet" href="./workspace.css">
 </head>
 <body>
-<header class="topbar">
-  <a class="brand" href="./" aria-label="На главную WreckLib"><span class="brand-mark">◇</span><span class="brand-name">WreckLib</span></a>
+<header class="topbar wrecklib-topbar">
+  <a class="brand" href="./" aria-label="WreckLib — домой"><span class="brand-mark">◇</span><span class="brand-name">WreckLib</span></a>
   <span class="header-subtitle">Энциклопедия кампаний</span>
   <div class="topbar-tools">
-    <label class="sr-only" for="accent-choice">Цвет оформления</label>
+    <button id="appearance-open" class="topbar-settings-button" type="button" title="Настройки оформления" aria-label="Настройки оформления">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.6 3.2h4.8l.7 2.2c.5.2 1 .5 1.5.9l2.2-.5 2.4 4.2-1.6 1.7a8 8 0 0 1 0 1.8l1.6 1.7-2.4 4.2-2.2-.5c-.5.4-1 .7-1.5.9l-.7 2.2H9.6l-.7-2.2a8.4 8.4 0 0 1-1.5-.9l-2.2.5-2.4-4.2 1.6-1.7a8 8 0 0 1 0-1.8L2.8 10l2.4-4.2 2.2.5c.5-.4 1-.7 1.5-.9l.7-2.2Z"/><circle cx="12" cy="12.6" r="3.1"/></svg>
+    </button>
+    <div class="profile-wrap">
+      <button id="account-toggle" class="account-button" type="button" aria-label="Аккаунт" aria-expanded="false" aria-controls="profile-menu">
+        <span class="account-glyph" id="account-avatar" aria-hidden="true">●</span>
+        <span id="account" class="account-label">Гость</span>
+      </button>
+      <div class="profile-menu" id="profile-menu" hidden>
+        <p class="eyebrow">АККАУНТ</p>
+        <p id="profile-email" class="profile-email"></p>
+        <button id="logout" class="button" type="button" hidden>Выйти из аккаунта</button>
+      </div>
+    </div>
+  </div>
+</header>
+<dialog id="appearance-dialog" class="appearance-dialog" aria-labelledby="appearance-title">
+  <div class="settings-dialog-head"><h2 id="appearance-title">Оформление</h2><button class="button" id="appearance-close" type="button">Закрыть</button></div>
+  <p class="muted">Настройки WreckTrack применяются ко всему интерфейсу WreckLib на этом устройстве.</p>
+  <div class="settings-fields">
+    <label for="accent-choice">Цвет оформления</label>
     <select id="accent-choice" aria-label="Цвет оформления">
       <option value="gold">Золото</option><option value="blue">Синий</option>
       <option value="scarlet">Красный</option><option value="purple">Фиолетовый</option>
     </select>
-    <label class="sr-only" for="font-choice">Шрифт оформления</label>
+    <label for="font-choice">Шрифт заголовков</label>
     <select id="font-choice" aria-label="Шрифт оформления">
       <option value="classic">Georgia</option>
       <option value="neuzeit">Neuzeit Antiqua</option>
@@ -28,10 +49,27 @@
       <option value="ebbe">Ebbe</option>
       <option value="old-town">Old Town</option>
     </select>
-    <span id="account">Гость</span>
-    <button id="logout" type="button" hidden>Выйти</button>
   </div>
-</header>
+</dialog>
+<aside class="workspace-nav" id="workspace-nav" aria-label="Разделы WreckLib" hidden>
+  <div class="workspace-chooser">
+    <label for="workspace-campaign">Кампания</label>
+    <select id="workspace-campaign" aria-label="Выбрать кампанию"><option value="all">Все кампании</option></select>
+  </div>
+  <nav class="workspace-sections" aria-label="Навигация по библиотеке">
+    <button type="button" class="workspace-link is-active" data-workspace-section="campaigns" aria-current="page"><span class="nav-symbol" aria-hidden="true">▦</span>Все кампании</button>
+    <div class="workspace-nav-caption">ПЕРСОНАЖИ И МИР</div>
+    <button type="button" class="workspace-link" data-workspace-section="players"><span class="nav-symbol" aria-hidden="true">♙</span>Игроки</button>
+    <button type="button" class="workspace-link" data-workspace-section="npc"><span class="nav-symbol" aria-hidden="true">♟</span>NPC</button>
+    <button type="button" class="workspace-link" data-workspace-section="locations"><span class="nav-symbol" aria-hidden="true">⌖</span>Локации</button>
+    <div class="workspace-nav-caption">МАТЕРИАЛЫ</div>
+    <button type="button" class="workspace-link" data-workspace-section="maps"><span class="nav-symbol" aria-hidden="true">▧</span>Карты</button>
+    <button type="button" class="workspace-link" data-workspace-section="handouts"><span class="nav-symbol" aria-hidden="true">▤</span>Раздатки</button>
+    <div class="workspace-nav-separator"></div>
+    <button type="button" class="workspace-link" data-workspace-section="materials"><span class="nav-symbol" aria-hidden="true">☷</span>Все материалы</button>
+  </nav>
+  <p class="workspace-nav-hint">Персонажи игроков помечаются тегом «игрок», карты — «карта», раздатки — «раздатка».</p>
+</aside>
 <main>
 <div id="notice" role="status" aria-live="polite"></div>
 <section id="login" class="landing">
@@ -55,6 +93,18 @@
   <button class="button" type="button" id="import-choose">Импорт JSON в новую кампанию</button>
   <input type="file" id="import-file" accept=".json,application/json" hidden>
   <form id="campaign-form"><input name="name" required maxlength="100" placeholder="Название кампании"><button class="button primary" type="submit">+ Создать кампанию</button></form>
+</section>
+<section id="catalog" class="catalog" hidden>
+  <p class="eyebrow" id="catalog-eyebrow">БИБЛИОТЕКА WRECKLIB</p>
+  <div class="catalog-heading">
+    <div><h1 id="catalog-title">Персонажи</h1><p class="lead" id="catalog-subtitle"></p></div>
+    <button class="button primary" type="button" id="catalog-create" hidden>+ Добавить</button>
+  </div>
+  <div class="catalog-toolbar"><label for="catalog-search">Поиск в разделе</label>
+    <input id="catalog-search" type="search" placeholder="Найти карточку…" autocomplete="off">
+    <span id="catalog-count" class="muted"></span>
+  </div>
+  <div id="catalog-cards" class="entity-cards" aria-live="polite"></div>
 </section>
 <section id="inside" hidden>
   <div class="page-head">

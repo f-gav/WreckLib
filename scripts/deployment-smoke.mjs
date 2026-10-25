@@ -11,6 +11,8 @@ const expected=[
   ['tags.js', 'filterByTag'],
   ['export.js', 'serializeCampaignExport'],
   ['import.js', 'validateImportSnapshot'],
+  ['project-navigation.js', 'matchesCategory'],
+  ['workspace.css', '.workspace-nav'],
   ['style.css', '--gold'],
   ['wrecktrack-visual.css', 'font-family:"Neuzeit Antiqua"']
 ];
