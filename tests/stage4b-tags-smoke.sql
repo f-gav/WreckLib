@@ -36,7 +36,9 @@ do $$declare blocked boolean:=false; changed integer:=0; begin
   raise exception 'Viewer tag mutation persisted';end if;
 end $$;
 select set_config('request.jwt.claim.sub','a8333333-3333-4333-8333-333333333333',true);
-update public.entries set tags=array['обновлено','метро'] where id='c8111111-1111-4111-8111-111111111111';
+select public.update_entry_if_unchanged('c8111111-1111-4111-8111-111111111111',
+ (select updated_at from public.entries where id='c8111111-1111-4111-8111-111111111111'),
+ 'Public','','Markdown public',array['обновлено','метро'],null,null);
 do $$begin
  if (select tags from public.entries where id='c8111111-1111-4111-8111-111111111111')<>array['обновлено','метро'] then raise exception 'Editor cannot update tags';end if;
 end $$;
