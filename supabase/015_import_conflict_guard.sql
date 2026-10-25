@@ -155,5 +155,15 @@ end $$;
 revoke all on function public.attach_entry_image_if_unchanged(uuid,timestamptz,text) from public,anon,authenticated;
 grant execute on function public.attach_entry_image_if_unchanged(uuid,timestamptz,text) to authenticated;
 
+-- Monotonic versioning for conflict detection, including within one transaction.
+create or replace function private.touch_entry_updated_at()
+returns trigger language plpgsql set search_path='' as $revision$
+begin
+ new.updated_at := pg_catalog.greatest(
+   pg_catalog.clock_timestamp(), old.updated_at + interval '1 microsecond'
+ );
+ return new;
+end $revision$;
+
 -- Old browser clients must not bypass optimistic locking via direct REST UPDATE.
 revoke update on public.entries from authenticated;
