@@ -25,13 +25,16 @@ do $$declare token text; response jsonb; begin
  if response::text like '%секрет%' then raise exception 'Hidden tags leaked in guest JSON';end if;
 end $$;
 select set_config('request.jwt.claim.sub','a8222222-2222-4222-8222-222222222222',true);
-do $$declare blocked boolean:=false; begin
+do $declare blocked boolean:=false; changed integer:=0; begin
  if (select count(*) from public.entries where campaign_id='b8111111-1111-4111-8111-111111111111')<>1 then raise exception 'Viewer got hidden tags';end if;
  begin
   update public.entries set tags=array['нельзя'] where id='c8111111-1111-4111-8111-111111111111';
+  get diagnostics changed=row_count;
  exception when others then blocked:=true;end;
- if not blocked then raise exception 'Viewer changed tags';end if;
-end $$;
+ if not blocked and changed<>0 then raise exception 'Viewer changed tags';end if;
+ if (select tags from public.entries where id='c8111111-1111-4111-8111-111111111111')<>array['город','метро'] then
+  raise exception 'Viewer tag mutation persisted';end if;
+end $;
 select set_config('request.jwt.claim.sub','a8333333-3333-4333-8333-333333333333',true);
 update public.entries set tags=array['обновлено','метро'] where id='c8111111-1111-4111-8111-111111111111';
 do $$begin
