@@ -69,6 +69,11 @@
         <button class="button" id="new-folder" type="button">+ Папка</button>
         <button class="button" id="new-card" type="button">+ Карточка</button>
       </div></div>
+      <div class="library-search">
+        <label for="entry-search">Поиск по материалам</label>
+        <input id="entry-search" type="search" placeholder="Название или содержимое…" autocomplete="off" maxlength="120">
+        <div id="search-results" class="library-search-results" hidden aria-live="polite"></div>
+      </div>
       <nav id="tree" aria-label="Структура кампании"></nav>
       <section id="invite-panel" class="side-panel" hidden>
         <h3>Участники</h3>
@@ -110,7 +115,23 @@
   <label>Тип<select name="kind" id="kind"><option value="person">Персонаж</option><option value="location">Локация</option><option value="item">Предмет</option><option value="faction">Фракция</option><option value="event">Событие</option><option value="article">Статья</option><option value="folder">Папка</option></select></label>
   <label>Название<input name="title" required maxlength="140"></label>
   <label>Краткое описание<textarea name="description" rows="2"></textarea></label>
-  <label>Содержание<textarea name="body" rows="7"></textarea></label>
+  <div class="markdown-tools" aria-label="Форматирование Markdown">
+    <button type="button" class="button mini-button" data-md="bold" title="Жирный">B</button>
+    <button type="button" class="button mini-button" data-md="italic" title="Курсив"><i>I</i></button>
+    <button type="button" class="button mini-button" data-md="heading" title="Заголовок">H2</button>
+    <button type="button" class="button mini-button" data-md="list" title="Список">☷</button>
+    <button type="button" class="button mini-button" data-md="quote" title="Цитата">❞</button>
+    <button type="button" class="button mini-button" data-md="code" title="Код">⌘</button>
+    <button type="button" class="button mini-button" data-md="link" title="Внешняя ссылка">↗</button>
+    <label class="wiki-picker-label" for="wiki-picker">Статья</label>
+    <select id="wiki-picker" aria-label="Статья для ссылки"><option value="">Выберите статью…</option></select>
+    <button type="button" class="button mini-button" data-md="wiki" title="Вставить ссылку на статью">[[+]]</button>
+  </div>
+  <label>Содержание (Markdown)<textarea id="markdown-source" name="body" rows="9" spellcheck="true" placeholder="## Заголовок&#10;&#10;Текст, **жирный**, [[Название статьи]]"></textarea></label>
+  <details class="markdown-preview" open>
+    <summary>Предпросмотр Markdown</summary>
+    <div id="markdown-preview-content" class="markdown-body" aria-live="polite"></div>
+  </details>
   <div id="gm-fields">
     <label>Скрытые заметки Мастера<textarea name="secret_body" rows="4"></textarea></label>
     <label class="check-row"><input type="checkbox" name="hidden"> Скрыть всю запись от игроков</label>
