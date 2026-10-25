@@ -4,6 +4,7 @@ import {renderMarkdown,searchEntries,findBacklinks,escapeHtml} from './markdown.
 import {parseTags,collectVisibleTags,filterByTag,normalizedTag} from './tags.js';
 import {serializeCampaignExport,exportFilename} from './export.js';
 import {validateImportSnapshot,buildImageBackup,extractImageBlob,MAX_ARCHIVE_BYTES} from './import.js';
+import {CATEGORIES,categorize,creationDefaults} from './project-navigation.js';
 
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -14,6 +15,80 @@ const notice=x=>{$('notice').textContent=x||''};
 const check=({data,error})=>{if(error)throw error;return data};
 let client,account=null,campaigns=[],campaign=null,entries=[],selected=null,editing=null,parentId=null,imageUrl=null,moveTargetId=null,historyEntryId=null,historyRevisionId=null,importData=null;
 const collapsedFolders=new Set();
+let navSection='campaigns',navCampaignId='all',catalogRows=[],catalogRenderToken=0;
+const catalogImages=new Set();
+const coverSymbols={players:'♙',npc:'♟',locations:'⌖',maps:'▧',handouts:'▤',materials:'☷'};
+function clearCatalogImages(){
+ catalogRenderToken++;
+ for(const uri of catalogImages)URL.revokeObjectURL(uri);
+ catalogImages.clear();
+}
+function renderAvatar(user){
+ const glyph=$('account-avatar');
+ glyph.replaceChildren();
+ const raw=user?.user_metadata?.avatar_url||user?.user_metadata?.picture;
+ let trusted=null;
+ if(typeof raw==='string'){
+  try{
+   const url=new URL(raw);
+   if(url.protocol==='https:'&&(/(^|\.)googleusercontent\.com$/).test(url.hostname))trusted=url.href;
+  }catch{}
+ }
+ if(trusted){
+  const avatar=document.createElement('img');
+  avatar.src=trusted;avatar.alt='';avatar.referrerPolicy='no-referrer';
+  avatar.onerror=()=>{avatar.remove();glyph.textContent=(user?.email||'?').slice(0,1).toUpperCase()};
+  glyph.append(avatar);
+ }else glyph.textContent=(user?.email||'?').slice(0,1).toUpperCase();
+}
+function setWorkspaceVisible(visible){
+ $('workspace-nav').hidden=!visible;
+ document.body.classList.toggle('workspace-active',visible);
+}
+function updateWorkspaceNavigation(){
+ document.querySelectorAll('[data-workspace-section]').forEach(btn=>{
+  const active=btn.dataset.workspaceSection===navSection;
+  btn.classList.toggle('is-active',active);
+  if(active)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current');
+ });
+}
+function populateCampaignSelector(){
+ const picker=$('workspace-campaign');
+ const options=account?campaigns.map(c=>({id:c.id,name:c.name})):
+  campaign?[{id:campaign.id,name:campaign.name}]:[];
+ picker.innerHTML='<option value="all">Все кампании</option>'+
+  options.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
+ if(!account&&campaign){navCampaignId=campaign.id;picker.querySelector('option[value="all"]').remove()}
+ if(!options.some(c=>c.id===navCampaignId))navCampaignId=account?'all':campaign?.id||'all';
+ picker.value=navCampaignId;
+}
+$('appearance-open').onclick=()=>$('appearance-dialog').showModal();
+$('appearance-close').onclick=()=>$('appearance-dialog').close();
+$('account-toggle').onclick=()=>{
+ const menu=$('profile-menu'),next=menu.hidden;
+ menu.hidden=!next;
+ $('account-toggle').setAttribute('aria-expanded',String(next));
+};
+document.addEventListener('pointerdown',event=>{
+ if(!event.target.closest('.profile-wrap')){
+  $('profile-menu').hidden=true;
+  $('account-toggle').setAttribute('aria-expanded','false');
+ }
+});
+document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'){
+  $('profile-menu').hidden=true;
+  $('account-toggle').setAttribute('aria-expanded','false');
+ }
+});
+$('workspace-campaign').onchange=event=>{
+ navCampaignId=event.target.value;
+ const next=navSection==='campaigns'&&navCampaignId!=='all'?'npc':navSection;
+ navigateSection(next).catch(error=>notice(error.message));
+};
+document.querySelectorAll('[data-workspace-section]').forEach(btn=>btn.onclick=()=>{
+ navigateSection(btn.dataset.workspaceSection).catch(error=>notice(error.message));
+});
 const writable=()=>campaign?.role==='master'||campaign?.role==='editor';
 const base=()=>client.from('entries');
 
@@ -57,8 +132,10 @@ async function launch(){
  account=user;
  $('logout').hidden=!account;
  $('account').textContent=account?.email||'Гость';
+ $('profile-email').textContent=account?.email||'Гостевой просмотр';
+ renderAvatar(account);
  const invite=new URL(location.href).searchParams.get('invite');
- if(invite&&!account){$('login').hidden=false;notice('Войдите с Google или по почте, чтобы принять приглашение.');return;}
+ if(invite&&!account){setWorkspaceVisible(false);$('login').hidden=false;notice('Войдите с Google или по почте, чтобы принять приглашение.');return;}
  if(invite&&account){
   try{
    check(await client.rpc('accept_invitation',{p_id:invite}));
@@ -69,7 +146,7 @@ async function launch(){
  }
  if(viewToken){await openShared(viewToken);return;}
  if(account){await home();return;}
- $('login').hidden=false;
+ setWorkspaceVisible(false);$('login').hidden=false;
 }
 
 $('google-login').onclick=async()=>{
@@ -92,11 +169,17 @@ $('login-form').onsubmit=async event=>{
  }catch(err){notice(err.message)}
 };
 $('logout').onclick=async()=>{await client.auth.signOut();location.assign(location.pathname)};
-$('back').onclick=()=>{if(account)home().catch(e=>notice(e.message));else location.assign(location.pathname)};
+$('back').onclick=()=>{
+ if(CATEGORIES[navSection]||navSection==='materials'){
+  navigateSection(CATEGORIES[navSection]?navSection:'campaigns').catch(e=>notice(e.message));
+ }else if(account)home().catch(e=>notice(e.message));
+ else location.assign(location.pathname);
+};
 
 async function home(){
  campaign=null;selected=null;collapsedFolders.clear();setMobileView('tree');
- $('login').hidden=true;$('inside').hidden=true;$('invalid-share').hidden=true;$('home').hidden=false;
+ clearCatalogImages();setWorkspaceVisible(!!account);
+ $('login').hidden=true;$('inside').hidden=true;$('catalog').hidden=true;$('invalid-share').hidden=true;$('home').hidden=false;
  if(!account){$('home').hidden=true;$('login').hidden=false;return}
  campaigns=check(await client.from('campaigns')
   .select('id,name,memberships!inner(role)')
@@ -105,7 +188,12 @@ async function home(){
   '<button type="button" class="card" data-cid="'+esc(c.id)+'"><strong>'+esc(c.name)+
   '</strong><p class="muted">'+esc(roles[c.memberships[0]?.role]||'Участник')+'</p></button>'
  ).join('')||'<p class="muted">У вас пока нет кампаний. По ссылке от Мастера можно читать чужую кампанию даже без приглашения.</p>';
- document.querySelectorAll('[data-cid]').forEach(btn=>btn.onclick=()=>open(btn.dataset.cid));
+ populateCampaignSelector();updateWorkspaceNavigation();
+ document.querySelectorAll('[data-cid]').forEach(btn=>btn.onclick=async()=>{
+  navCampaignId=btn.dataset.cid;navSection='materials';updateWorkspaceNavigation();
+  $('workspace-campaign').value=navCampaignId;
+  try{await open(btn.dataset.cid)}catch(e){notice(e.message)}
+ });
 }
 $('campaign-form').onsubmit=async event=>{
  event.preventDefault();
@@ -116,7 +204,9 @@ $('campaign-form').onsubmit=async event=>{
 };
 
 function showInside(){
- $('login').hidden=true;$('home').hidden=true;$('invalid-share').hidden=true;$('inside').hidden=false;
+ setWorkspaceVisible(true);
+ $('login').hidden=true;$('home').hidden=true;$('catalog').hidden=true;$('invalid-share').hidden=true;$('inside').hidden=false;
+ updateWorkspaceNavigation();
  $('campaign-name').textContent=campaign.name;
  $('role').textContent=roles[campaign.role]||'Участник';
  $('new-folder').hidden=$('new-card').hidden=!writable();
@@ -129,7 +219,7 @@ function showInside(){
 async function open(cid){
  const found=campaigns.find(c=>c.id===cid);if(!found)return;
  campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;collapsedFolders.clear();$('entry-search').value='';$('tag-filter').value='';setMobileView('tree');
- showInside();
+ showInside();populateCampaignSelector();
  if(campaign.role==='master')await Promise.all([refreshShareStatus(),refreshMembers(),refreshTrash()]);
  await refresh();
 }
@@ -138,10 +228,136 @@ async function openShared(token){
  $('login').hidden=true;$('home').hidden=true;$('inside').hidden=true;
  try{
   const data=check(await client.rpc('read_shared_campaign',{p_token:token}));
-  if(!data||!Array.isArray(data.entries)){$('invalid-share').hidden=false;return}
+  if(!data||!Array.isArray(data.entries)){setWorkspaceVisible(false);$('invalid-share').hidden=false;return}
   campaign={id:data.id,name:data.name,role:'guest'};entries=data.entries;selected=null;collapsedFolders.clear();$('entry-search').value='';$('tag-filter').value='';setMobileView('tree');
-  showInside();tree();populateTagFilter();renderSearch();$('detail').innerHTML='<p class="muted">Выберите опубликованный материал слева.</p>';
- }catch(err){$('invalid-share').hidden=false;notice('Не удалось открыть ссылку: '+err.message)}
+  navSection='materials';navCampaignId=data.id;showInside();populateCampaignSelector();
+  tree();populateTagFilter();renderSearch();$('detail').innerHTML='<p class="muted">Выберите опубликованный материал слева.</p>';
+ }catch(err){setWorkspaceVisible(false);$('invalid-share').hidden=false;notice('Не удалось открыть ссылку: '+err.message)}
+}
+
+
+// Workspace catalog: a different view of the same RLS-filtered entries.
+// A global "all campaigns" selection never grants extra permissions.
+async function loadCatalogRows(){
+ if(!account){
+  return campaign?.role==='guest'?entries.map(e=>({...e,campaign_id:campaign.id})):[];
+ }
+ const ids=navCampaignId==='all'?campaigns.map(c=>c.id):[navCampaignId];
+ if(ids.length===0)return [];
+ const result=[];
+ for(let offset=0;offset<5000;offset+=500){
+  const query=client.from('entries')
+   .select('id,campaign_id,kind,title,description,body,tags,image_path,updated_at')
+   .in('campaign_id',ids).order('id',{ascending:true}).range(offset,offset+499);
+  const page=check(await query);
+  result.push(...page);
+  if(page.length<500)return result;
+ }
+ notice('Показаны первые 5000 доступных материалов. Уточните кампанию.');
+ return result;
+}
+function drawCatalogCards(){
+ const section=navSection;
+ const input=$('catalog-search').value.trim();
+ const q=input.toLocaleLowerCase('ru');
+ const filtered=(CATEGORIES[section]?categorize(catalogRows,section):catalogRows.filter(e=>e.kind!=='folder'))
+   .filter(e=>!q||String(e.title+' '+(e.description||'')).toLocaleLowerCase('ru').includes(q));
+ const limit=200;const display=filtered.slice(0,limit);
+ $('catalog-count').textContent=filtered.length+' карточек'+(filtered.length>limit?' · первые 200':'');
+ clearCatalogImages();
+ const names=new Map(campaigns.map(c=>[c.id,c.name]));
+ $('catalog-cards').innerHTML=display.map(e=>{
+  const symbol=coverSymbols[section]||'◇';
+  const campName=names.get(e.campaign_id)||(campaign?.id===e.campaign_id?campaign.name:'Кампания');
+  return '<button class="entity-card" type="button" data-catalog-id="'+esc(e.id)+'" data-catalog-cid="'+esc(e.campaign_id)+'">'+
+   '<div class="entity-card-cover" data-cover="'+esc(e.id)+'"><span class="entity-card-symbol" aria-hidden="true">'+symbol+'</span></div>'+
+   '<div class="entity-card-body"><strong class="entity-card-title">'+esc(e.title)+'</strong>'+
+   '<span class="entity-card-subtitle">'+esc(e.description||'Открыть карточку')+'</span>'+
+   (navCampaignId==='all'?'<span class="entity-card-campaign">'+esc(campName)+'</span>':'')+'</div></button>';
+ }).join('')||'<p class="entity-cards-empty">Пока здесь нет карточек. Выберите кампанию и добавьте первую запись.</p>';
+ $('catalog-cards').querySelectorAll('[data-catalog-id]').forEach(btn=>btn.onclick=async()=>{
+  const id=btn.dataset.catalogId,cid=btn.dataset.catalogCid;
+  try{
+   if(account&&campaign?.id!==cid)await open(cid);
+   const found=entries.find(e=>e.id===id);
+   if(!found){notice('Запись больше недоступна — обновите раздел.');return}
+   selected=found;tree();setMobileView('detail');await detail();
+   $('catalog').hidden=true;$('inside').hidden=false;
+  }catch(error){notice(error.message)}
+ });
+ const token=catalogRenderToken;
+ const covers=[...$('catalog-cards').querySelectorAll('[data-cover]')];
+ const load=async node=>{
+  const record=display.find(e=>e.id===node.dataset.cover);
+  if(!record||(campaign?.role==='guest'?!record.has_image:!record.image_path))return;
+  try{
+   const blob=campaign?.role==='guest'?await readGuestImage(record.id):
+    check(await client.storage.from('wrecklib-images').download(record.image_path));
+   if(token!==catalogRenderToken||!node.isConnected)return;
+   const uri=URL.createObjectURL(blob);catalogImages.add(uri);
+   const img=document.createElement('img');img.alt='';img.loading='lazy';img.src=uri;
+   node.replaceChildren(img);
+  }catch{/* Keep the styled placeholder if a private thumbnail is unavailable. */}
+ };
+ if('IntersectionObserver' in window){
+  const watcher=new IntersectionObserver((items,observer)=>{
+   for(const item of items)if(item.isIntersecting){
+    observer.unobserve(item.target);load(item.target);
+   }
+  },{rootMargin:'150px'});
+  covers.forEach(node=>watcher.observe(node));
+ }else covers.slice(0,30).forEach(load);
+}
+async function showCatalog(section){
+ if(!account&&!viewToken){setWorkspaceVisible(false);$('login').hidden=false;return}
+ if(!CATEGORIES[section]&&section!=='materials')return;
+ navSection=section;
+ updateWorkspaceNavigation();
+ $('login').hidden=true;$('home').hidden=true;$('inside').hidden=true;$('invalid-share').hidden=true;
+ $('catalog').hidden=false;setWorkspaceVisible(true);
+ $('catalog-eyebrow').textContent=navCampaignId==='all'?'ВСЕ КАМПАНИИ':'КАМПАНИЯ';
+ const category=CATEGORIES[section];
+ $('catalog-title').textContent=category?.title||'Все материалы';
+ $('catalog-subtitle').textContent=category?.subtitle||'Статьи и записи вашей энциклопедии';
+ $('catalog-search').value='';
+ $('catalog-cards').innerHTML='<p class="entity-cards-empty">Загрузка карточек…</p>';
+ const canCreate=account&&navCampaignId!=='all'&&
+  ['master','editor'].includes(campaigns.find(c=>c.id===navCampaignId)?.memberships[0]?.role);
+ $('catalog-create').hidden=!canCreate||!category;
+ $('catalog-create').textContent='+ Добавить '+(section==='players'?'персонажа':section==='npc'?'NPC':section==='maps'?'карту':section==='handouts'?'раздатку':'локацию');
+ const requestId=++catalogRequestId;
+ const rows=await loadCatalogRows();
+ if(requestId!==catalogRequestId||navSection!==section||$('catalog').hidden)return;
+ catalogRows=rows;
+ drawCatalogCards();
+}
+let catalogRequestId=0;
+$('catalog-search').addEventListener('input',()=>{if(!$('catalog').hidden)drawCatalogCards()});
+$('catalog-create').onclick=async()=>{
+ if(!account||!CATEGORIES[navSection]||navCampaignId==='all')return;
+ const category=navSection,cid=navCampaignId;
+ const role=campaigns.find(c=>c.id===cid)?.memberships[0]?.role;
+ if(!['master','editor'].includes(role))return;
+ try{
+  if(campaign?.id!==cid)await open(cid);
+  const defaults=creationDefaults(category);
+  parentId=null;editor(defaults.kind);
+  if(defaults.tag)$('entry-form').elements.tags.value=defaults.tag;
+ }catch(e){notice(e.message)}
+};
+async function navigateSection(section){
+ if(!account&&!viewToken){setWorkspaceVisible(false);$('login').hidden=false;return}
+ navSection=section;updateWorkspaceNavigation();
+ if(section==='campaigns'){
+  if(viewToken&&!account){await showCatalog('materials');return}
+  await home();return;
+ }
+ if(section==='materials'&&navCampaignId!=='all'){
+  if(campaign?.id===navCampaignId){showInside();await refresh();}
+  else await open(navCampaignId);
+  return;
+ }
+ await showCatalog(section);
 }
 
 async function refresh(){
