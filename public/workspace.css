@@ -168,3 +168,6 @@ body.workspace-active #inside{max-width:1600px}
  .workspace-chooser .wreck-select-current{font-size:12px}
 }
 @media(max-width:550px){.workspace-chooser .wreck-select{width:125px}}
+
+/* Show the campaign name with its original case above the category title. */
+#catalog-eyebrow{text-transform:none;overflow-wrap:anywhere}
