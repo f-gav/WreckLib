@@ -47,7 +47,11 @@ export function validateImportSnapshot(data){
       !Number.isInteger(img.size_bytes)||img.size_bytes<12||img.size_bytes>MAX_IMAGE_BYTES||
       !UUID.test(path.split('/')[0]||'')||!/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.webp$/i.test(path)||
       !data.entries.some(e=>e.image_path===path))failures.push('Неверный файл изображения '+path);
-   else{imageCount++;totalSize+=img.size_bytes;}
+   else{
+    // Decode and check the real WebP header BEFORE creating a campaign.
+    try{extractImageBlob(img)}catch{failures.push('Повреждённый WebP: '+path)}
+    imageCount++;totalSize+=img.size_bytes;
+   }
   }
  }
  if(failures.length)throw new Error('Проверка не пройдена: '+failures.slice(0,6).join('; '));
