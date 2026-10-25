@@ -7,6 +7,7 @@ const origin='https://f-gav.github.io/WreckLib/';
 const expected=[
   ['', '<title>WreckLib'],
   ['app.js', 'signInWithOAuth'],
+  ['markdown.js', 'renderMarkdown'],
   ['style.css', '--gold'],
   ['wrecktrack-visual.css', 'font-family:"Neuzeit Antiqua"']
 ];

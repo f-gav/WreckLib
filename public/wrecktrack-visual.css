@@ -128,3 +128,45 @@ dialog .actions{position:sticky;bottom:-28px;background:var(--panel);padding:12p
 .panel-subtitle h3,.panel-subtitle h4{margin:0}
 .side-panel h4{font-family:var(--display-font);font-weight:500;font-size:18px;margin:18px 0 8px}
 #trash-list,#members-list,#pending-list{min-width:0}
+
+/* Stage 4 — restrained WreckTrack-compatible typography and wiki utilities */
+.library-search{display:grid;gap:7px;margin-top:18px}
+.library-search label{font-size:12px;color:var(--muted)}
+.library-search input{width:100%;min-width:0}
+.library-search-results{margin-top:7px;display:grid;gap:6px;max-height:420px;overflow:auto}
+.search-hit{display:grid;gap:4px;text-align:left!important;background:rgba(var(--accent-rgb),.035)!important;border-color:var(--line)!important;padding:10px!important}
+.search-hit:hover{border-color:var(--gold2)!important}
+.search-hit strong{font-weight:600;font-size:13px}
+.search-hit small{color:var(--muted);font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.markdown-body{font-size:15px;line-height:1.68;overflow-wrap:anywhere}
+.markdown-body h1{font-size:clamp(27px,3vw,35px);margin:24px 0 12px}
+.markdown-body h2{font-size:clamp(23px,2.4vw,29px);margin:22px 0 10px}
+.markdown-body h3{font-size:22px;margin:18px 0 8px}
+.markdown-body h4,.markdown-body h5,.markdown-body h6{font-family:var(--display-font);font-size:17px;margin:14px 0 6px}
+.markdown-body h1:first-child,.markdown-body h2:first-child,.markdown-body h3:first-child{margin-top:0}
+.markdown-body p{margin:8px 0 14px}
+.markdown-body ul,.markdown-body ol{padding-left:26px;margin:10px 0 18px}
+.markdown-body li{margin:3px 0}
+.markdown-body blockquote{margin:14px 0;padding:12px 17px;border-left:3px solid var(--gold2);background:rgba(var(--accent-rgb),.06);color:var(--paper)}
+.markdown-body hr{border:0;border-top:1px solid var(--line);margin:21px 0}
+.markdown-body code{font:13px ui-monospace,Consolas,monospace;background:var(--panel2);padding:2px 5px;border-radius:4px}
+.markdown-body .md-code{overflow:auto;white-space:pre;padding:14px;border:1px solid var(--line);border-radius:10px;background:#111115}
+.markdown-body .md-code code{padding:0;background:transparent;white-space:pre}
+.wiki-link{color:var(--gold);text-decoration:none;border-bottom:1px dashed var(--gold2)}
+.wiki-link:hover{border-bottom-style:solid}
+.wiki-unresolved{color:var(--muted);border-bottom:1px dotted var(--line)}
+.backlinks{border-top:1px solid var(--line);margin-top:28px;padding-top:16px}
+.backlinks h3{font-size:19px}
+.backlink-item{font-size:13px;min-height:36px;margin:0 6px 6px 0}
+.markdown-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.markdown-tools .mini-button{width:auto;min-width:32px}
+.markdown-tools select{max-width:190px;min-height:36px;font-size:12px}
+.wiki-picker-label{width:auto!important;font-size:12px;color:var(--muted)}
+.markdown-preview{border:1px solid var(--line);border-radius:10px;padding:12px}
+.markdown-preview summary{cursor:pointer;color:var(--gold);font-size:13px}
+#markdown-preview-content{padding:14px 4px 0;min-height:65px}
+@media(max-width:550px){
+ .markdown-tools select{max-width:140px}
+ .library-search-results{max-height:50vh}
+ .markdown-body{font-size:14px}
+}

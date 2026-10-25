@@ -1,5 +1,6 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import {SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY} from './config.js';
+import {renderMarkdown,searchEntries,findBacklinks,escapeHtml} from './markdown.js';
 
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -123,7 +124,7 @@ function showInside(){
 
 async function open(cid){
  const found=campaigns.find(c=>c.id===cid);if(!found)return;
- campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;collapsedFolders.clear();setMobileView('tree');
+ campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;collapsedFolders.clear();$('entry-search').value='';setMobileView('tree');
  showInside();
  if(campaign.role==='master')await Promise.all([refreshShareStatus(),refreshMembers(),refreshTrash()]);
  await refresh();
@@ -134,8 +135,8 @@ async function openShared(token){
  try{
   const data=check(await client.rpc('read_shared_campaign',{p_token:token}));
   if(!data||!Array.isArray(data.entries)){$('invalid-share').hidden=false;return}
-  campaign={id:data.id,name:data.name,role:'guest'};entries=data.entries;selected=null;collapsedFolders.clear();setMobileView('tree');
-  showInside();tree();$('detail').innerHTML='<p class="muted">Выберите опубликованный материал слева.</p>';
+  campaign={id:data.id,name:data.name,role:'guest'};entries=data.entries;selected=null;collapsedFolders.clear();$('entry-search').value='';setMobileView('tree');
+  showInside();tree();renderSearch();$('detail').innerHTML='<p class="muted">Выберите опубликованный материал слева.</p>';
  }catch(err){$('invalid-share').hidden=false;notice('Не удалось открыть ссылку: '+err.message)}
 }
 
@@ -150,7 +151,7 @@ async function refresh(){
   const lookup=new Map(entries.map(e=>[e.id,e]));
   secrets.forEach(s=>{if(lookup.has(s.entry_id))lookup.get(s.entry_id).secret_body=s.secret_body});
  }
- tree();
+ tree();renderSearch();
  if(selected){selected=entries.find(e=>e.id===selected.id)||null;await detail()}
 }
 
@@ -236,6 +237,73 @@ $('move-form').onsubmit=async event=>{
  finally{$('move-submit').disabled=false}
 };
 
+
+// Local searching never calls a privileged search endpoint: only entries returned
+// by campaign RLS or the read-only guest share RPC are considered.
+function navigateToVisibleEntry(id){
+ const found=entries.find(e=>e.id===id);
+ if(!found)return; // Do not fetch arbitrary IDs or disclose hidden entries.
+ selected=found;tree();setMobileView('detail');
+ detail().catch(err=>notice(err.message));
+}
+$('detail').addEventListener('click',event=>{
+ const link=event.target.closest('[data-wiki-target]');
+ if(!link||!$('detail').contains(link))return;
+ event.preventDefault();
+ navigateToVisibleEntry(link.dataset.wikiTarget);
+});
+function renderSearch(){
+ const search=$('entry-search'),results=$('search-results'),query=search.value.trim();
+ $('tree').hidden=!!query;
+ results.hidden=!query;
+ if(!query){results.replaceChildren();return}
+ const hits=searchEntries(entries,query,40);
+ results.innerHTML=hits.map(({entry,excerpt})=>
+  '<button type="button" class="search-hit" data-search-target="'+esc(entry.id)+'">'+
+   '<strong>'+esc(entry.title)+'</strong>'+
+   (excerpt?'<small>'+esc(excerpt)+'</small>':'')+'</button>'
+ ).join('')||'<p class="muted">Ничего не найдено среди доступных материалов.</p>';
+ results.querySelectorAll('[data-search-target]').forEach(btn=>btn.onclick=()=>{
+  navigateToVisibleEntry(btn.dataset.searchTarget);
+ });
+}
+$('entry-search').addEventListener('input',renderSearch);
+
+function populateWikiPicker(){
+ const picker=$('wiki-picker');
+ picker.innerHTML='<option value="">Выберите статью…</option>'+
+  entries.filter(e=>e.kind!=='folder').slice().sort((a,b)=>a.title.localeCompare(b.title,'ru'))
+   .map(e=>'<option value="'+esc(e.id)+'">'+esc(e.title)+'</option>').join('');
+}
+function updateMarkdownPreview(){
+ $('markdown-preview-content').innerHTML=renderMarkdown($('markdown-source').value,entries);
+}
+$('markdown-source').addEventListener('input',updateMarkdownPreview);
+function insertMarkdown(prefix,suffix,placeholder){
+ const area=$('markdown-source');
+ const start=area.selectionStart,end=area.selectionEnd;
+ const marked=area.value.slice(start,end)||placeholder;
+ area.setRangeText(prefix+marked+suffix,start,end,'end');
+ area.focus();updateMarkdownPreview();
+}
+document.querySelectorAll('[data-md]').forEach(button=>button.addEventListener('click',()=>{
+ const type=button.dataset.md;
+ switch(type){
+  case 'bold':insertMarkdown('**','**','жирный текст');break;
+  case 'italic':insertMarkdown('*','*','курсив');break;
+  case 'heading':insertMarkdown('\n## ','\n','Заголовок');break;
+  case 'list':insertMarkdown('\n- ','\n','пункт');break;
+  case 'quote':insertMarkdown('\n> ','\n','цитата');break;
+  case 'code':insertMarkdown('\x60','\x60','код');break;
+  case 'link':insertMarkdown('[','](https://example.com)','текст ссылки');break;
+  case 'wiki':{
+   const id=$('wiki-picker').value,entry=entries.find(e=>e.id===id);
+   if(!entry){notice('Сначала выберите доступную статью для ссылки.');return}
+   insertMarkdown('[[',']]',entry.id+'|'+entry.title);break;
+  }
+ }
+}));
+
 async function readGuestImage(id){
  const response=await fetch(SUPABASE_URL+'/functions/v1/shared-image',{
   method:'POST',
@@ -263,7 +331,9 @@ async function detail(){
  }
  $('detail').innerHTML=portrait+
   '<div class="eyebrow">'+esc(kinds[e.kind]||e.kind)+'</div><h2>'+esc(e.title)+'</h2>'+
-  '<p class="muted">'+esc(e.description)+'</p><pre>'+esc(e.body)+'</pre>'+
+  '<p class="muted">'+esc(e.description)+'</p><div class="markdown-body">'+renderMarkdown(e.body,entries)+'</div>'+
+  (findBacklinks(e.id,entries).length?'<section class="backlinks"><h3>Ссылаются на эту статью</h3>'+
+    findBacklinks(e.id,entries).map(back=>'<button type="button" class="button backlink-item" data-wiki-target="'+esc(back.id)+'">'+esc(back.title)+'</button>').join('')+'</section>':'')+
   (campaign.role==='master'&&e.secret_body?
     '<div class="secret"><b>Только Мастер</b><pre>'+esc(e.secret_body)+'</pre></div>':'')+
   (writable()?'<div class="actions"><button class="button" id="edit-entry" type="button">Редактировать</button><button class="button" id="move-entry" type="button">Переместить</button>'+
@@ -288,7 +358,7 @@ function editor(kind,e=null){
  f.elements.hidden.checked=e?.visibility==='master';
  $('gm-fields').hidden=campaign.role!=='master';
  $('editor-title').textContent=e?'Редактировать':'Новая запись';
- $('editor').showModal();
+ $('editor').showModal();populateWikiPicker();updateMarkdownPreview();
 }
 $('cancel').onclick=()=>$('editor').close();
 $('new-folder').onclick=()=>{if(!writable())return;parentId=selected?.kind==='folder'?selected.id:null;editor('folder')};
