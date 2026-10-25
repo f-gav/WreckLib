@@ -45,4 +45,32 @@ const settings=await r.json();
 const enabled=settings?.external?.google===true;
 console.log('Google OAuth provider enabled:',enabled);
 assert.ok(enabled,'Enable Google in Supabase Auth Providers and configure its client credentials');
-console.log('Deployment smoke passed. Note: the user must still complete an actual Google sign-in.');
+// Check the first OAuth handshake without accessing any private Google account.
+const start=new URL(SUPABASE_URL+'/auth/v1/authorize');
+start.searchParams.set('provider','google');
+start.searchParams.set('redirect_to',origin);
+const authorize=await fetch(start,{redirect:'manual',headers:{apikey:SUPABASE_PUBLISHABLE_KEY},signal:AbortSignal.timeout(15000)});
+const providerLocation=authorize.headers.get('location')||'';
+assert.ok(authorize.status>=300&&authorize.status<400,'Google OAuth did not begin redirect flow');
+assert.ok(/^https:\/\/accounts\.google\.com\//.test(providerLocation),'Google OAuth did not redirect to Google');
+console.log('OK Google OAuth initial redirect:',authorize.status);
+
+const badToken='0'.repeat(64);
+const badEntry='00000000-0000-4000-8000-000000000000';
+// Unauthorized guest RPC must not reveal any campaign content.
+const guest=await fetch(SUPABASE_URL+'/rest/v1/rpc/read_shared_campaign',{
+ method:'POST',headers:{apikey:SUPABASE_PUBLISHABLE_KEY,'Content-Type':'application/json'},
+ body:JSON.stringify({p_token:badToken}),signal:AbortSignal.timeout(15000)
+});
+assert.equal(guest.status,200,'Anonymous guest RPC unavailable');
+assert.equal(await guest.json(),null,'Invalid guest token must return no campaign');
+console.log('OK invalid guest share rejected');
+
+// Guest image endpoint must never return an image without a valid token and visible entry.
+const image=await fetch(SUPABASE_URL+'/functions/v1/shared-image',{
+ method:'POST',headers:{apikey:SUPABASE_PUBLISHABLE_KEY,'Content-Type':'application/json'},
+ body:JSON.stringify({token:badToken,entry_id:badEntry}),signal:AbortSignal.timeout(15000)
+});
+assert.equal(image.status,404,'Invalid guest image share should be denied');
+console.log('OK unauthorized guest image denied:',image.status);
+console.log('Deployment smoke passed. The user must still complete an actual Google sign-in.');
