@@ -5,6 +5,9 @@ create table public.memberships(campaign_id uuid not null references public.camp
 create table public.entries(id uuid primary key default gen_random_uuid(),campaign_id uuid not null references public.campaigns(id) on delete cascade,parent_id uuid references public.entries(id) on delete restrict,kind text not null check(kind in ('folder','person','location','item','faction','event','article')),title text not null check(length(title) between 1 and 140),description text not null default '',body text not null default '',visibility text not null default 'published' check(visibility in ('published','master')),image_path text,created_by uuid not null references auth.users(id),updated_at timestamptz default now());
 create table public.entry_secrets(entry_id uuid primary key references public.entries(id) on delete cascade,secret_body text not null default '');
 create table public.invitations(id uuid primary key default gen_random_uuid(),campaign_id uuid not null references public.campaigns(id) on delete cascade,email text not null,role text not null check(role in ('master','editor','viewer')),created_at timestamptz default now());
+-- Never allow an entry in one campaign to reference another campaign's private image.
+alter table public.entries add constraint entry_image_campaign_scope
+  check (image_path is null or split_part(image_path,'/',1) = campaign_id::text);
 create index on public.entries(campaign_id,parent_id);
 create index on public.memberships(user_id);
 create schema if not exists private;
@@ -27,6 +30,13 @@ end $$;
 revoke all on function private.role_for(uuid),private.visible_entry(uuid) from public,anon;
 grant usage on schema private to authenticated;
 grant execute on function private.role_for(uuid),private.visible_entry(uuid) to authenticated;
+-- Explicit REST grants. Permissions still require matching RLS policies.
+grant usage on schema public to authenticated;
+grant select, insert on public.campaigns to authenticated;
+grant select on public.memberships to authenticated;
+grant select, insert, update on public.entries to authenticated;
+grant select, insert, update on public.entry_secrets to authenticated;
+grant select, insert on public.invitations to authenticated;
 alter table public.campaigns enable row level security;
 alter table public.memberships enable row level security;
 alter table public.entries enable row level security;
@@ -82,3 +92,5 @@ begin
  return new;
 end $$;
 create trigger guard_entry_update before update on public.entries for each row execute function private.guard_entry_update();
+
+revoke all on function private.guard_entry_update() from public, anon;

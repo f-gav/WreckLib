@@ -19,7 +19,7 @@ async function launch(){
  if(invite){try{await check(await client.rpc('accept_invitation',{p_id:invite}));history.replaceState({},'',location.pathname);notice('Приглашение принято')}catch(e){notice('Приглашение: '+e.message)}}
  await home();
 }
-$('login-form').onsubmit=async e=>{e.preventDefault();try{const email=e.target.elements.email.value;check(await client.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}}));notice('Письмо со ссылкой для входа отправлено.')}catch(err){notice(err.message)}};
+$('login-form').onsubmit=async e=>{e.preventDefault();try{const email=e.target.elements.email.value;check(await client.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname+location.search}}));notice('Письмо со ссылкой для входа отправлено.')}catch(err){notice(err.message)}};
 $('logout').onclick=async()=>{await client.auth.signOut();location.reload()};
 async function home(){
  campaign=null;$('inside').hidden=true;$('home').hidden=false;

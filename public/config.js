@@ -1,3 +1,4 @@
-// Only public project identifiers belong here. Never put a service_role/secret key in the browser.
-export const SUPABASE_URL = 'https://REPLACE_WITH_NEW_PROJECT.supabase.co';
-export const SUPABASE_PUBLISHABLE_KEY = 'REPLACE_WITH_PUBLISHABLE_KEY';
+// Public client settings for the dedicated WreckLib project.
+// This is a publishable key, NOT a service role or secret key.
+export const SUPABASE_URL = 'https://nwlthntpkmgrhmejhfqk.supabase.co';
+export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_WhMD3DCV1uRfJT6HilFChg_bDPQlYAV';
