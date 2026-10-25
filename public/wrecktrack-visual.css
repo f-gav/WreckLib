@@ -1,0 +1,103 @@
+/* WreckTrack visual system — local font resources copied from the source repository.
+ * The parent WreckTrack project is never changed. All assets belong to WreckLib.
+ */
+@font-face{font-family:"Neuzeit Antiqua";src:url("./fonts/neuzeit-antiqua.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Belarus";src:url("./fonts/belarus-regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Ebbe";src:url("./fonts/ebbe-regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Old Town";src:url("./fonts/old-town-regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+:root{--display-font:Georgia,serif}
+:root[data-font="neuzeit"]{--display-font:"Neuzeit Antiqua",Georgia,serif}
+:root[data-font="belarus"]{--display-font:"Belarus",Georgia,serif}
+:root[data-font="ebbe"]{--display-font:"Ebbe",Georgia,serif}
+:root[data-font="old-town"]{--display-font:"Old Town",Georgia,serif}
+h1,h2,h3,.brand-name,.brand-mark,.card strong,.eyebrow,#editor-title{font-family:var(--display-font)}
+:root[data-font="neuzeit"] h1{letter-spacing:-.012em}
+:root[data-font="belarus"] h1,:root[data-font="belarus"] h2,:root[data-font="belarus"] .brand-name{letter-spacing:.03em}
+:root[data-font="old-town"] h1{letter-spacing:.005em}
+:root[data-font="ebbe"] h1{letter-spacing:-.015em}
+body{scrollbar-color:var(--line) var(--ink);scrollbar-width:thin}
+button:focus-visible,a:focus-visible,summary:focus-visible{
+ outline:2px solid var(--gold);outline-offset:3px
+}
+.topbar-tools{min-width:0}
+#accent-choice,#font-choice{
+ background:rgba(var(--accent-rgb),.055);
+ border-color:var(--gold2);
+ border-radius:10px;
+ min-height:40px;
+ color:var(--paper)
+}
+#font-choice{max-width:156px}
+#accent-choice{max-width:120px}
+#account{max-width:145px}
+.mobile-view-switch{display:none}
+.page-head{min-width:0}
+.page-head>div:first-child{min-width:0}
+#campaign-name{overflow-wrap:anywhere}
+.layout{align-items:start}
+.sidebar,#article-panel{box-shadow:var(--shadow)}
+.side-panel .link-result input{max-width:100%;width:100%;margin:6px 0 9px}
+#tree{max-height:min(68vh,800px);overflow:auto;overscroll-behavior:contain}
+#article-panel{overflow:hidden}
+#detail:after{content:"";display:block;clear:both}
+#detail img{max-width:100%}
+#invite-panel button,#share-panel button{min-height:40px}
+dialog{overscroll-behavior:contain}
+dialog .actions{position:sticky;bottom:-28px;background:var(--panel);padding:12px 0 env(safe-area-inset-bottom,0px)}
+@media(max-width:1000px){
+ .header-subtitle{display:none}
+ .topbar-tools{margin-left:auto}
+}
+@media(max-width:850px){
+ .mobile-view-switch{
+  display:flex;gap:6px;margin:0 0 14px;padding:5px;
+  position:sticky;top:72px;z-index:4;
+  background:rgba(23,23,28,.94);backdrop-filter:blur(12px);
+  border:1px solid var(--line);border-radius:11px
+ }
+ .mobile-view-button{
+  flex:1;min-height:42px;background:transparent!important;border-color:transparent!important;
+  color:var(--muted)!important;font-size:14px;font-weight:600
+ }
+ .mobile-view-button.is-active{
+  background:rgba(var(--accent-rgb),.13)!important;
+  border-color:var(--gold2)!important;color:var(--gold)!important
+ }
+ :root[data-mobile-view="detail"] .layout>.sidebar{display:none}
+ :root:not([data-mobile-view="detail"]) .layout>#article-panel{display:none}
+ .layout{display:block}
+ .sidebar,#article-panel{min-height:0}
+ #tree{max-height:none;overflow:visible}
+ .page-head{margin-bottom:16px}
+ .page-head h1{font-size:clamp(29px,7vw,45px)}
+}
+@media(max-width:550px){
+ .topbar{min-height:66px;padding:8px 12px;flex-wrap:nowrap}
+ .topbar-tools{gap:4px}
+ #accent-choice{width:80px;min-width:0;font-size:11px;max-width:80px;padding:5px 4px}
+ #font-choice{width:87px;min-width:0;font-size:11px;max-width:87px;padding:5px 4px}
+ #account{max-width:65px;font-size:10px}
+ .brand{gap:4px}
+ .brand-name{font-size:15px}
+ #logout{padding:5px 6px;font-size:11px}
+ .mobile-view-switch{top:66px}
+ .section-head{gap:10px}
+ .section-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}
+ .section-actions .button{width:100%;min-height:42px}
+ .sidebar,#article-panel{padding:17px}
+ #detail pre{overflow-wrap:anywhere}
+ .page-head .back{margin-bottom:13px!important}
+ .dialog-form label{min-width:0}
+ dialog{padding:18px}
+ dialog .actions{bottom:-18px;gap:8px}
+ dialog .actions .button{flex:1}
+ .login-card{margin-top:18px}
+}
+@media(max-width:360px){
+ #account{display:none}
+ .brand-mark{display:none}
+ #font-choice{width:82px}
+}
+@media(prefers-reduced-motion:reduce){
+ .card{transition:none}
+}

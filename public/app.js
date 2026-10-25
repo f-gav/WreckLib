@@ -22,6 +22,27 @@ $('accent-choice').onchange=event=>{
  localStorage.setItem('wrecklib-accent',theme);
 };
 
+const fontModes=['classic','neuzeit','belarus','ebbe','old-town'];
+const savedFont=localStorage.getItem('wrecklib-font')||'classic';
+document.documentElement.dataset.font=fontModes.includes(savedFont)?savedFont:'classic';
+$('font-choice').value=document.documentElement.dataset.font;
+$('font-choice').onchange=event=>{
+ const font=fontModes.includes(event.target.value)?event.target.value:'classic';
+ document.documentElement.dataset.font=font;
+ localStorage.setItem('wrecklib-font',font);
+};
+function setMobileView(view){
+ const active=view==='detail'?'detail':'tree';
+ document.documentElement.dataset.mobileView=active;
+ $('show-tree').classList.toggle('is-active',active==='tree');
+ $('show-detail').classList.toggle('is-active',active==='detail');
+ $('show-tree').setAttribute('aria-pressed',String(active==='tree'));
+ $('show-detail').setAttribute('aria-pressed',String(active==='detail'));
+}
+$('show-tree').onclick=()=>setMobileView('tree');
+$('show-detail').onclick=()=>setMobileView('detail');
+setMobileView('tree');
+
 async function launch(){
  if(!/^https:\/\//.test(SUPABASE_URL)||!SUPABASE_PUBLISHABLE_KEY||SUPABASE_PUBLISHABLE_KEY.includes('REPLACE')){
   notice('Не заданы публичные настройки Supabase для WreckLib');return;
@@ -69,7 +90,7 @@ $('logout').onclick=async()=>{await client.auth.signOut();location.assign(locati
 $('back').onclick=()=>{if(account)home().catch(e=>notice(e.message));else location.assign(location.pathname)};
 
 async function home(){
- campaign=null;selected=null;
+ campaign=null;selected=null;setMobileView('tree');
  $('login').hidden=true;$('inside').hidden=true;$('invalid-share').hidden=true;$('home').hidden=false;
  if(!account){$('home').hidden=true;$('login').hidden=false;return}
  campaigns=check(await client.from('campaigns')
@@ -101,7 +122,7 @@ function showInside(){
 
 async function open(cid){
  const found=campaigns.find(c=>c.id===cid);if(!found)return;
- campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;
+ campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;setMobileView('tree');
  showInside();
  if(campaign.role==='master')await refreshShareStatus();
  await refresh();
@@ -112,7 +133,7 @@ async function openShared(token){
  try{
   const data=check(await client.rpc('read_shared_campaign',{p_token:token}));
   if(!data||!Array.isArray(data.entries)){$('invalid-share').hidden=false;return}
-  campaign={id:data.id,name:data.name,role:'guest'};entries=data.entries;selected=null;
+  campaign={id:data.id,name:data.name,role:'guest'};entries=data.entries;selected=null;setMobileView('tree');
   showInside();tree();$('detail').innerHTML='<p class="muted">Выберите опубликованный материал слева.</p>';
  }catch(err){$('invalid-share').hidden=false;notice('Не удалось открыть ссылку: '+err.message)}
 }
@@ -144,7 +165,7 @@ function tree(){
  }
  $('tree').innerHTML=build(null,0,new Set())||'<p class="muted">Материалов пока нет.</p>';
  document.querySelectorAll('[data-entry]').forEach(btn=>btn.onclick=async()=>{
-  selected=entries.find(e=>e.id===btn.dataset.entry);tree();await detail();
+  selected=entries.find(e=>e.id===btn.dataset.entry);tree();setMobileView('detail');await detail();
  });
 }
 

@@ -8,6 +8,7 @@
 <meta name="description" content="WreckLib — энциклопедия ролевых кампаний.">
 <title>WreckLib — энциклопедия кампаний</title>
 <link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./wrecktrack-visual.css">
 </head>
 <body>
 <header class="topbar">
@@ -18,6 +19,14 @@
     <select id="accent-choice" aria-label="Цвет оформления">
       <option value="gold">Золото</option><option value="blue">Синий</option>
       <option value="scarlet">Красный</option><option value="purple">Фиолетовый</option>
+    </select>
+    <label class="sr-only" for="font-choice">Шрифт оформления</label>
+    <select id="font-choice" aria-label="Шрифт оформления">
+      <option value="classic">Georgia</option>
+      <option value="neuzeit">Neuzeit Antiqua</option>
+      <option value="belarus">Belarus</option>
+      <option value="ebbe">Ebbe</option>
+      <option value="old-town">Old Town</option>
     </select>
     <span id="account">Гость</span>
     <button id="logout" type="button" hidden>Выйти</button>
@@ -50,6 +59,10 @@
     <div><button class="button back" id="back" type="button">← Все кампании</button><p id="role" class="eyebrow"></p><h1 id="campaign-name"></h1></div>
     <span id="readonly-indicator" class="readonly-badge" hidden>Только просмотр</span>
   </div>
+  <nav class="mobile-view-switch" aria-label="Переключение панелей">
+    <button type="button" class="mobile-view-button is-active" id="show-tree" aria-pressed="true">Разделы</button>
+    <button type="button" class="mobile-view-button" id="show-detail" aria-pressed="false">Статья</button>
+  </nav>
   <div class="layout">
     <aside class="sidebar">
       <div class="section-head"><h2>Разделы</h2><div class="section-actions">
