@@ -19,11 +19,17 @@ insert into public.entries(id,campaign_id,parent_id,kind,title,created_by,visibi
 ('44444444-4444-4444-8444-444444444444','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','33333333-3333-4333-8333-333333333333','article','Public child of hidden folder','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','published');
 insert into public.entry_secrets(entry_id,secret_body) values ('22222222-2222-4222-8222-222222222222','GM-only secret');
 
+-- Storage metadata only: no binary files; transaction rollback cleans it all.
+update public.entries set image_path='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/public.webp' where id='22222222-2222-4222-8222-222222222222';
+update public.entries set image_path='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/secret.webp' where id='44444444-4444-4444-8444-444444444444';
+insert into storage.objects(bucket_id,name) values
+('wrecklib-images','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/public.webp'), ('wrecklib-images','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/secret.webp');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
 do $$ begin
  if (select count(*) from public.entries where campaign_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') <> 4 then raise exception 'Master entries visibility failed';end if;
  if (select count(*) from public.entry_secrets) <> 1 then raise exception 'Master secret visibility failed';end if;
+ if (select count(*) from storage.objects where bucket_id='wrecklib-images') <> 2 then raise exception 'Master image visibility failed';end if;
  perform public.create_campaign('Temporary RPC smoke test campaign');
  if not exists(select 1 from public.campaigns where name='Temporary RPC smoke test campaign') then raise exception 'create_campaign RPC failed';end if;
 end $$;
@@ -32,6 +38,7 @@ select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 do $$ declare blocked boolean:=false; begin
  if (select count(*) from public.entries where campaign_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') <> 2 then raise exception 'Editor hidden-descendant isolation failed';end if;
  if (select count(*) from public.entry_secrets) <> 0 then raise exception 'Editor could view master secrets';end if;
+ if (select count(*) from storage.objects where bucket_id='wrecklib-images') <> 1 then raise exception 'Editor image visibility failed';end if;
  insert into public.entries(campaign_id,parent_id,kind,title,created_by)
  values ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','11111111-1111-4111-8111-111111111111','person','Editor nested entry','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
  if not exists(select 1 from public.entries where title='Editor nested entry') then raise exception 'Editor nested insertion failed';end if;
@@ -46,6 +53,7 @@ select set_config('request.jwt.claim.sub','cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 do $$ declare blocked boolean:=false; begin
  if (select count(*) from public.entries where campaign_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') <> 3 then raise exception 'Viewer expected three visible entries';end if;
  if (select count(*) from public.entry_secrets) <> 0 then raise exception 'Viewer can read secrets';end if;
+ if (select count(*) from storage.objects where bucket_id='wrecklib-images') <> 1 then raise exception 'Viewer image visibility failed';end if;
  begin
   insert into public.entries(campaign_id,kind,title,created_by)
   values ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','person','Forbidden write','cccccccc-cccc-4ccc-8ccc-cccccccccccc');
@@ -58,6 +66,7 @@ select set_config('request.jwt.claim.sub','dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 do $$ begin
  if exists(select 1 from public.entries where campaign_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') then raise exception 'Outsider read entries';end if;
  if exists(select 1 from public.campaigns where id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') then raise exception 'Outsider read campaign';end if;
+ if exists(select 1 from storage.objects where bucket_id='wrecklib-images') then raise exception 'Outsider accessed images';end if;
 end $$;
 
 reset role;
