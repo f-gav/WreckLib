@@ -10,3 +10,5 @@ test('Campaign image paths cannot escape their campaign',()=>{const s=read('supa
 test('Authenticated roles have explicit table grants',()=>{const s=read('supabase/001_init.sql');assert.match(s,/grant select, insert, update on public.entries to authenticated/);});
 test('Invitation links survive email sign-in',()=>{const s=read('public/app.js');assert.match(s,/emailRedirectTo:location.origin\+location.pathname\+location.search/);});
 test('Pages assets use relative URLs',()=>{const s=read('public/index.html');assert.match(s,/href="\.\/style.css"/);assert.match(s,/src="\.\/app.js"/);});
+
+test('Hardening migration updates timestamps and removes duplicated SELECT policy',()=>{const s=read('supabase/002_hardening.sql');assert.match(s,/touch_entry_updated_at/);assert.match(s,/drop policy if exists secrets_write/);assert.match(s,/create policy secrets_insert/);assert.match(s,/create policy secrets_update/);});
