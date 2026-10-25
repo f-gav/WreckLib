@@ -20,7 +20,9 @@ update public.entries set title='Вторая версия',body='Второй �
 do $$declare denied boolean:=false;begin
  begin perform public.list_entry_revisions('c5111111-1111-4111-8111-111111111111');exception when others then denied:=true;end;
  if not denied then raise exception 'Editor can see history';end if;
- if (select count(*) from private.entry_revisions)>0 then raise exception 'Editor read private revisions';end if;
+ denied:=false;
+ begin perform count(*) from private.entry_revisions;exception when insufficient_privilege then denied:=true;end;
+ if not denied then raise exception 'Editor has direct SELECT on history';end if;
 end $$;
 select set_config('request.jwt.claim.sub','a5333333-3333-4333-8333-333333333333',true);
 do $$declare denied boolean:=false;begin
