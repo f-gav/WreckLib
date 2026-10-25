@@ -116,7 +116,7 @@ function showInside(){
  $('campaign-name').textContent=campaign.name;
  $('role').textContent=roles[campaign.role]||'Участник';
  $('new-folder').hidden=$('new-card').hidden=!writable();
- $('invite-panel').hidden=$('share-panel').hidden=campaign.role!=='master';
+ $('invite-panel').hidden=$('share-panel').hidden=$('trash-panel').hidden=campaign.role!=='master';
  $('readonly-indicator').hidden=writable();
  $('share-link').textContent='';
 }
@@ -125,7 +125,7 @@ async function open(cid){
  const found=campaigns.find(c=>c.id===cid);if(!found)return;
  campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;collapsedFolders.clear();setMobileView('tree');
  showInside();
- if(campaign.role==='master')await refreshShareStatus();
+ if(campaign.role==='master')await Promise.all([refreshShareStatus(),refreshMembers(),refreshTrash()]);
  await refresh();
 }
 
@@ -272,6 +272,11 @@ async function detail(){
   $('edit-entry').onclick=()=>editor(e.kind,e);
   $('move-entry').onclick=moveEditor;
   $('image-file').onchange=upload;
+  if(campaign.role==='master'){
+    $('detail').querySelector('.actions').insertAdjacentHTML('beforeend',
+      '<button type="button" class="button danger-button" id="trash-entry">В корзину</button>');
+    $('trash-entry').onclick=trashSelected;
+  }
  }
 }
 
@@ -317,9 +322,96 @@ $('invite-form').onsubmit=async event=>{
   }).select('id').single());
   const url=new URL(location.href);url.search='';url.hash='';url.searchParams.set('invite',data.id);
   $('invite-link').textContent='Отправьте эту ссылку приглашённому Google-аккаунту: '+url.href;
-  notice('Приглашение создано. Только владелец указанного email сможет принять его.');
+  notice('Приглашение создано. Только владелец указанного email сможет принять его.');await refreshMembers();
  }catch(err){notice(err.message)}
 };
+
+
+// Master-only membership management. Roles are enforced by server RPCs, not this UI.
+async function refreshMembers(){
+ if(campaign?.role!=='master')return;
+ try{
+  const cid=campaign.id;
+  const members=check(await client.rpc('list_campaign_members',{p_campaign_id:cid}));
+  const pending=check(await client.from('invitations').select('id,email,role')
+    .eq('campaign_id',cid).order('created_at',{ascending:false}));
+  if(campaign?.id!==cid)return;
+  $('members-list').innerHTML=members.map(m=>{
+   const protectedMember=m.is_owner||m.user_id===account.id;
+   return '<div class="member-row"><div class="member-name">'+esc(m.email||m.user_id)+
+     (m.is_owner?' <span class="muted">(владелец)</span>':'')+'</div>'+
+     (protectedMember?'<span class="muted">'+esc(roles[m.role]||m.role)+'</span>':
+     '<select aria-label="Роль участника" data-member-role="'+esc(m.user_id)+'">'+
+       ['master','editor','viewer'].map(r=>'<option value="'+r+'"'+(m.role===r?' selected':'')+'>'+esc(roles[r])+'</option>').join('')+
+     '</select><div class="member-actions">'+
+     '<button class="button mini-button" data-member-save="'+esc(m.user_id)+'" type="button">Сохранить</button>'+
+     '<button class="button mini-button danger-button" data-member-remove="'+esc(m.user_id)+'" type="button">Отозвать доступ</button></div>')+
+     '</div>';
+  }).join('')||'<p class="muted">Участников нет.</p>';
+  $('pending-list').innerHTML=pending.map(inv=>'<div class="member-row"><div class="member-name">'+esc(inv.email)+
+    ' <span class="muted">· '+esc(roles[inv.role]||inv.role)+'</span></div>'+
+    '<button type="button" class="button mini-button" data-invite-cancel="'+esc(inv.id)+'">Отозвать приглашение</button></div>').join('')||
+    '<p class="muted">Ожидающих приглашений нет.</p>';
+  document.querySelectorAll('[data-member-save]').forEach(btn=>btn.onclick=async()=>{
+   const uid=btn.dataset.memberSave;
+   const role=btn.closest('.member-row').querySelector('select').value;
+   try{check(await client.rpc('change_member_role',{p_campaign_id:cid,p_user_id:uid,p_role:role}));
+    notice('Роль участника обновлена');await refreshMembers();}
+   catch(err){notice('Роли: '+err.message)}
+  });
+  document.querySelectorAll('[data-member-remove]').forEach(btn=>btn.onclick=async()=>{
+   const uid=btn.dataset.memberRemove;
+   if(!confirm('Отозвать доступ этого участника к кампании?'))return;
+   try{check(await client.rpc('remove_campaign_member',{p_campaign_id:cid,p_user_id:uid}));
+    notice('Доступ участника отозван');await refreshMembers();}
+   catch(err){notice('Участники: '+err.message)}
+  });
+  document.querySelectorAll('[data-invite-cancel]').forEach(btn=>btn.onclick=async()=>{
+   if(!confirm('Отменить это приглашение?'))return;
+   try{check(await client.rpc('revoke_campaign_invitation',{p_invitation_id:btn.dataset.inviteCancel}));
+    notice('Приглашение отозвано');await refreshMembers();}
+   catch(err){notice('Приглашение: '+err.message)}
+  });
+ }catch(err){notice('Список участников: '+err.message)}
+}
+$('members-refresh').onclick=()=>refreshMembers();
+async function refreshTrash(){
+ if(campaign?.role!=='master')return;
+ try{
+  const cid=campaign.id;
+  const rows=check(await client.rpc('list_trash',{p_campaign_id:cid}));
+  if(campaign?.id!==cid)return;
+  $('trash-list').innerHTML=rows.map(item=>'<div class="member-row"><div class="member-name">'+
+    esc(item.kind==='folder'?'▸ ':'• ')+esc(item.title)+'</div>'+
+    '<button type="button" class="button mini-button" data-restore="'+esc(item.id)+'">Восстановить</button></div>').join('')||
+    '<p class="muted">Корзина пуста.</p>';
+  document.querySelectorAll('[data-restore]').forEach(btn=>btn.onclick=async()=>{
+   const id=btn.dataset.restore;
+   try{
+    check(await client.rpc('restore_entry',{p_entry_id:id}));
+    await refresh();await refreshTrash();
+    selected=entries.find(e=>e.id===id)||null;
+    tree();await detail();
+    notice('Материал восстановлен с исходной иерархией');
+   }catch(err){notice('Восстановление: '+err.message)}
+  });
+ }catch(err){notice('Корзина: '+err.message)}
+}
+$('trash-refresh').onclick=()=>refreshTrash();
+async function trashSelected(){
+ if(campaign?.role!=='master'||!selected)return;
+ const id=selected.id;
+ const question=selected.kind==='folder'
+   ?'Переместить папку в корзину вместе со всеми вложенными материалами?'
+   :'Переместить эту запись в корзину?';
+ if(!confirm(question))return;
+ try{
+  check(await client.rpc('trash_entry',{p_entry_id:id}));
+  selected=null;await refresh();await detail();await refreshTrash();
+  setMobileView('tree');
+  notice('Материал перемещён в корзину. Данные и вложенность сохранены.');
+ }catch(err){notice('Корзина: '+err.message)}
+}
 
 async function refreshShareStatus(){
  if(campaign?.role!=='master')return;

@@ -113,3 +113,18 @@ dialog .actions{position:sticky;bottom:-28px;background:var(--panel);padding:12p
 #move-dialog{width:min(95vw,550px)}
 #move-description{white-space:pre-wrap}
 @media(max-width:550px){.tree-row .tree-item{min-height:45px}.tree-row .tree-toggle{min-height:44px}}
+
+/* WreckLib 3B: member and trash controls */
+.member-row{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid var(--line);min-width:0}
+.member-row:last-child{border-bottom:0}
+.member-name{font-size:13px;overflow-wrap:anywhere}
+.member-row select{width:100%;min-height:38px;font-size:13px}
+.member-row .button{width:auto;text-align:center;min-height:37px;margin:0}
+.member-actions{display:flex;gap:7px;flex-wrap:wrap}
+.mini-button{padding:7px 10px!important;font-size:12px!important;min-height:34px!important}
+.danger-button{border-color:rgba(219,106,106,.5)!important;color:#f1aaaa!important;background:rgba(160,45,45,.08)!important}
+.danger-button:hover{background:rgba(160,45,45,.19)!important;border-color:#dd7777!important}
+.panel-subtitle{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:15px 0 8px}
+.panel-subtitle h3,.panel-subtitle h4{margin:0}
+.side-panel h4{font-family:var(--display-font);font-weight:500;font-size:18px;margin:18px 0 8px}
+#trash-list,#members-list,#pending-list{min-width:0}

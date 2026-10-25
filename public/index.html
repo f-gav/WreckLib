@@ -77,6 +77,10 @@
         <select name="role" aria-label="Роль участника"><option value="viewer">Игрок — чтение</option><option value="editor">Игрок+ — редактирование</option><option value="master">Мастер — полный доступ</option></select>
         <button class="button" type="submit">Создать приглашение</button></form>
         <div id="invite-link" class="link-result"></div>
+        <div class="panel-subtitle"><h4>Участники кампании</h4><button class="button mini-button" id="members-refresh" type="button">Обновить</button></div>
+        <div id="members-list" class="membership-list"></div>
+        <h4>Ожидающие приглашения</h4>
+        <div id="pending-list" class="membership-list"></div>
       </section>
       <section id="share-panel" class="side-panel" hidden>
         <h3>Ссылка для гостей</h3>
@@ -85,6 +89,11 @@
         <button class="button primary" id="create-share" type="button">Создать / обновить ссылку</button>
         <button class="button" id="revoke-share" type="button">Закрыть доступ по ссылке</button>
         <div id="share-link" class="link-result"></div>
+      </section>
+      <section id="trash-panel" class="side-panel" hidden>
+        <div class="panel-subtitle"><h3>Корзина</h3><button class="button mini-button" id="trash-refresh" type="button">Обновить</button></div>
+        <p class="muted">При восстановлении сохраняется исходная папка. Если удалён родитель, восстановите его первым.</p>
+        <div id="trash-list" class="membership-list" aria-live="polite"></div>
       </section>
     </aside>
     <article id="article-panel"><div id="detail"><p class="muted">Выберите статью слева.</p></div></article>
