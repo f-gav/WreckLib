@@ -54,12 +54,13 @@ function updateWorkspaceNavigation(){
 }
 function populateCampaignSelector(){
  const picker=$('workspace-campaign');
- const options=account?campaigns.map(c=>({id:c.id,name:c.name})):
-  campaign?[{id:campaign.id,name:campaign.name}]:[];
+ const guestShare=!!viewToken&&campaign?.role==='guest';
+ const options=guestShare?[{id:campaign.id,name:campaign.name}]:
+  account?campaigns.map(c=>({id:c.id,name:c.name})):[];
  picker.innerHTML='<option value="all">Все кампании</option>'+
   options.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
- if(!account&&campaign){navCampaignId=campaign.id;picker.querySelector('option[value="all"]').remove()}
- if(!options.some(c=>c.id===navCampaignId))navCampaignId=account?'all':campaign?.id||'all';
+ if(guestShare){navCampaignId=campaign.id;picker.querySelector('option[value="all"]').remove()}
+ if(!options.some(c=>c.id===navCampaignId))navCampaignId=guestShare?campaign.id:'all';
  picker.value=navCampaignId;
 }
 $('appearance-open').onclick=()=>$('appearance-dialog').showModal();
@@ -239,9 +240,10 @@ async function openShared(token){
 // Workspace catalog: a different view of the same RLS-filtered entries.
 // A global "all campaigns" selection never grants extra permissions.
 async function loadCatalogRows(){
- if(!account){
-  return campaign?.role==='guest'?entries.map(e=>({...e,campaign_id:campaign.id})):[];
+ if(viewToken&&campaign?.role==='guest'){
+  return entries.map(e=>({...e,campaign_id:campaign.id}));
  }
+ if(!account)return [];
  const ids=navCampaignId==='all'?campaigns.map(c=>c.id):[navCampaignId];
  if(ids.length===0)return [];
  const result=[];
@@ -279,7 +281,8 @@ function drawCatalogCards(){
   const id=btn.dataset.catalogId,cid=btn.dataset.catalogCid;
   try{
    if(account&&campaign?.id!==cid)await open(cid);
-   const found=entries.find(e=>e.id===id);
+   let found=entries.find(e=>e.id===id);
+   if(!found&&account){await refresh();found=entries.find(e=>e.id===id)}
    if(!found){notice('Запись больше недоступна — обновите раздел.');return}
    selected=found;tree();setMobileView('detail');await detail();
    $('catalog').hidden=true;$('inside').hidden=false;
@@ -349,7 +352,7 @@ async function navigateSection(section){
  if(!account&&!viewToken){setWorkspaceVisible(false);$('login').hidden=false;return}
  navSection=section;updateWorkspaceNavigation();
  if(section==='campaigns'){
-  if(viewToken&&!account){await showCatalog('materials');return}
+  if(viewToken&&campaign?.role==='guest'){await showCatalog('materials');return}
   await home();return;
  }
  if(section==='materials'&&navCampaignId!=='all'){

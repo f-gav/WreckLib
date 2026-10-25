@@ -101,3 +101,6 @@ body.workspace-active #inside{max-width:1600px}
 }
 @media(max-width:360px){.entity-cards{grid-template-columns:1fr}.entity-card-cover{height:145px}}
 @media(prefers-reduced-motion:reduce){.entity-card{transition:none}.entity-card:hover{transform:none}}
+
+/* Dialog selects override earlier mobile-sized legacy selectors. */
+.appearance-dialog #accent-choice,.appearance-dialog #font-choice{width:100%!important;max-width:none!important;min-width:0!important}
