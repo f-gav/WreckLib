@@ -16,7 +16,9 @@ values
 ('c5222222-2222-4222-8222-222222222222','b5111111-1111-4111-8111-111111111111','article','Тайна','Hidden','Секретная версия',array['тайна'],'a5111111-1111-4111-8111-111111111111','master');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','a5222222-2222-4222-8222-222222222222',true);
-update public.entries set title='Вторая версия',body='Второй текст',tags=array['новый'] where id='c5111111-1111-4111-8111-111111111111';
+select public.update_entry_if_unchanged('c5111111-1111-4111-8111-111111111111',
+ (select updated_at from public.entries where id='c5111111-1111-4111-8111-111111111111'),
+ 'Вторая версия','Описание','Второй текст',array['новый'],null,null);
 do $$declare denied boolean:=false;begin
  begin perform public.list_entry_revisions('c5111111-1111-4111-8111-111111111111');exception when others then denied:=true;end;
  if not denied then raise exception 'Editor can see history';end if;
