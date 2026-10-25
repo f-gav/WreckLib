@@ -31,7 +31,7 @@ begin
    then raise exception 'Invalid entry content';end if;
    select pg_catalog.array_agg(x.value) into tags_new from
      pg_catalog.jsonb_array_elements_text(it->'tags') x;
-   if pg_catalog.coalesce(pg_catalog.cardinality(tags_new),0)>16
+   if coalesce(pg_catalog.cardinality(tags_new),0)>16
       or pg_catalog.octet_length(pg_catalog.array_to_string(tags_new,','))>640
    then raise exception 'Invalid tags';end if;
    id_list:=pg_catalog.array_append(id_list,old_id);
@@ -159,7 +159,7 @@ grant execute on function public.attach_entry_image_if_unchanged(uuid,timestampt
 create or replace function private.touch_entry_updated_at()
 returns trigger language plpgsql set search_path='' as $revision$
 begin
- new.updated_at := pg_catalog.greatest(
+ new.updated_at := greatest(
    pg_catalog.clock_timestamp(), old.updated_at + interval '1 microsecond'
  );
  return new;
