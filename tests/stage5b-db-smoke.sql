@@ -36,6 +36,22 @@ begin
  exception when others then denied:=true;end;
  if not denied then raise exception 'Stale editor overwrote update';end if;
  if (select title from public.entries where id=child)<>'New story' then raise exception 'Stale edit persisted';end if;
+ -- Upload ownership check and image CAS also operate through the protected RPC.
+ insert into storage.objects(bucket_id,name,owner_id)
+ values('wrecklib-images',cid::text||'/a6111111-1111-4111-8111-111111111111.webp',
+   (select auth.uid())::text);
+ perform public.attach_entry_image_if_unchanged(
+   child,version2,cid::text||'/a6111111-1111-4111-8111-111111111111.webp');
+ if (select image_path from public.entries where id=child) <>
+   cid::text||'/a6111111-1111-4111-8111-111111111111.webp' then
+   raise exception 'Image attachment failed';end if;
+ denied:=false;
+ begin
+  perform public.attach_entry_image_if_unchanged(
+    child,version2,cid::text||'/a6111111-1111-4111-8111-111111111111.webp');
+ exception when others then denied:=true;end;
+ if not denied then raise exception 'Stale image update accepted';end if;
+
  denied:=false;
  begin
   perform public.import_campaign_snapshot(payload || jsonb_build_object('entries',
