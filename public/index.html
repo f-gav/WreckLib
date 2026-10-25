@@ -1,1 +1,100 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101014"><title>WreckLib</title><link rel="stylesheet" href="./style.css"></head><body><header><div class="brand">◇ <b>WreckLib</b></div><span id="account">Энциклопедия кампаний</span></header><main><div id="notice" role="status"></div><section id="login"><h1>Вход в WreckLib</h1><p class="muted">Войди по ссылке из электронной почты, чтобы открыть свои кампании.</p><form id="login-form"><input name="email" type="email" required placeholder="Электронная почта"><button class="primary">Получить ссылку</button></form></section><button id="logout" hidden>Выйти из аккаунта</button><section id="home" hidden><div class="eyebrow">ВАША БИБЛИОТЕКА</div><h1>Кампании</h1><p class="muted">Каждая кампания — отдельный мир со своими участниками и записями.</p><div id="campaigns" class="cards"></div><form id="campaign-form"><input name="name" required maxlength="100" placeholder="Название кампании"><button class="primary">+ Создать кампанию</button></form></section><section id="inside" hidden><button id="back">← Все кампании</button><div class="eyebrow" id="role"></div><h1 id="campaign-name"></h1><div class="layout"><aside><h3>Разделы</h3><div id="tree"></div><button id="new-folder">+ Папка</button><button id="new-card">+ Карточка</button><div id="invite-panel" hidden><h3>Пригласить</h3><form id="invite-form"><input name="email" type="email" placeholder="Email" required><select name="role"><option value="viewer">Игрок</option><option value="editor">Игрок+</option><option value="master">Мастер</option></select><button>Создать приглашение</button></form><div id="invite-link"></div></div></aside><article><div id="detail"><p class="muted">Выберите запись слева или создайте новую.</p></div></article></div></section></main><dialog id="editor"><form id="entry-form" method="dialog"><h2 id="editor-title">Новая карточка</h2><label>Тип<select name="kind" id="kind"><option value="person">Персонаж</option><option value="location">Локация</option><option value="item">Предмет</option><option value="faction">Фракция</option><option value="event">Событие</option><option value="article">Статья</option><option value="folder">Папка</option></select></label><label>Название<input name="title" required maxlength="140"></label><label>Краткое описание<textarea name="description"></textarea></label><label>Содержание<textarea name="body" rows="7"></textarea></label><div id="gm-fields"><label>Скрытые заметки Мастера<textarea name="secret_body" rows="4"></textarea></label><label><input type="checkbox" name="hidden"> Скрыть всю запись от игроков</label></div><div class="actions"><button type="button" id="cancel">Отмена</button><button class="primary">Сохранить</button></div></form></dialog><script type="module" src="./app.js"></script></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0d0d10">
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="WreckLib — энциклопедия ролевых кампаний.">
+<title>WreckLib — энциклопедия кампаний</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./" aria-label="На главную WreckLib"><span class="brand-mark">◇</span><span class="brand-name">WreckLib</span></a>
+  <span class="header-subtitle">Энциклопедия кампаний</span>
+  <div class="topbar-tools">
+    <label class="sr-only" for="accent-choice">Цвет оформления</label>
+    <select id="accent-choice" aria-label="Цвет оформления">
+      <option value="gold">Золото</option><option value="blue">Синий</option>
+      <option value="scarlet">Красный</option><option value="purple">Фиолетовый</option>
+    </select>
+    <span id="account">Гость</span>
+    <button id="logout" type="button" hidden>Выйти</button>
+  </div>
+</header>
+<main>
+<div id="notice" role="status" aria-live="polite"></div>
+<section id="login" class="landing">
+  <p class="eyebrow">WRECKLIB · ДОСТУП К МИРАМ</p>
+  <h1>Энциклопедия кампаний</h1>
+  <p class="lead">Войдите с Google, чтобы управлять своими кампаниями. Для чтения опубликованных материалов достаточно ссылки от Мастера — регистрация не нужна.</p>
+  <div class="login-card">
+    <button class="button primary google-button" id="google-login" type="button"><span class="google-glyph" aria-hidden="true">G</span> Войти через Google</button>
+    <details class="email-alternative">
+      <summary>Войти по ссылке на электронную почту</summary>
+      <form id="login-form"><input name="email" type="email" autocomplete="email" required placeholder="Электронная почта"><button class="button" type="submit">Получить ссылку</button></form>
+    </details>
+    <p class="muted fine-print">У вас есть ссылка на кампанию? Откройте её, чтобы просматривать статьи как гость.</p>
+  </div>
+</section>
+<section id="home" hidden>
+  <p class="eyebrow">ЛИЧНАЯ БИБЛИОТЕКА</p>
+  <h1>Ваши кампании</h1>
+  <p class="lead">Создайте новый мир или откройте кампанию, в которую вас пригласили.</p>
+  <div id="campaigns" class="cards"></div>
+  <form id="campaign-form"><input name="name" required maxlength="100" placeholder="Название кампании"><button class="button primary" type="submit">+ Создать кампанию</button></form>
+</section>
+<section id="inside" hidden>
+  <div class="page-head">
+    <div><button class="button back" id="back" type="button">← Все кампании</button><p id="role" class="eyebrow"></p><h1 id="campaign-name"></h1></div>
+    <span id="readonly-indicator" class="readonly-badge" hidden>Только просмотр</span>
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="section-head"><h2>Разделы</h2><div class="section-actions">
+        <button class="button" id="new-folder" type="button">+ Папка</button>
+        <button class="button" id="new-card" type="button">+ Карточка</button>
+      </div></div>
+      <nav id="tree" aria-label="Структура кампании"></nav>
+      <section id="invite-panel" class="side-panel" hidden>
+        <h3>Участники</h3>
+        <p class="muted">Назначайте роли конкретным Google-аккаунтам по адресу электронной почты.</p>
+        <form id="invite-form"><input name="email" type="email" autocomplete="email" placeholder="Email участника" required>
+        <select name="role" aria-label="Роль участника"><option value="viewer">Игрок — чтение</option><option value="editor">Игрок+ — редактирование</option><option value="master">Мастер — полный доступ</option></select>
+        <button class="button" type="submit">Создать приглашение</button></form>
+        <div id="invite-link" class="link-result"></div>
+      </section>
+      <section id="share-panel" class="side-panel" hidden>
+        <h3>Ссылка для гостей</h3>
+        <p class="muted">По ссылке видны только опубликованные материалы. Вход в аккаунт не требуется.</p>
+        <p class="muted" id="share-status">Ссылка ещё не создана.</p>
+        <button class="button primary" id="create-share" type="button">Создать / обновить ссылку</button>
+        <button class="button" id="revoke-share" type="button">Закрыть доступ по ссылке</button>
+        <div id="share-link" class="link-result"></div>
+      </section>
+    </aside>
+    <article id="article-panel"><div id="detail"><p class="muted">Выберите статью слева.</p></div></article>
+  </div>
+</section>
+<section id="invalid-share" hidden class="landing">
+  <p class="eyebrow">НЕДОСТУПНАЯ ССЫЛКА</p><h1>Кампания не найдена</h1>
+  <p class="lead">Возможно, Мастер отозвал ссылку или она была скопирована не полностью.</p>
+  <a class="button" href="./">Вернуться на главную</a>
+</section>
+</main>
+<dialog id="editor"><form id="entry-form" class="dialog-form">
+  <p class="eyebrow">МАТЕРИАЛ КАМПАНИИ</p><h2 id="editor-title">Новая карточка</h2>
+  <label>Тип<select name="kind" id="kind"><option value="person">Персонаж</option><option value="location">Локация</option><option value="item">Предмет</option><option value="faction">Фракция</option><option value="event">Событие</option><option value="article">Статья</option><option value="folder">Папка</option></select></label>
+  <label>Название<input name="title" required maxlength="140"></label>
+  <label>Краткое описание<textarea name="description" rows="2"></textarea></label>
+  <label>Содержание<textarea name="body" rows="7"></textarea></label>
+  <div id="gm-fields">
+    <label>Скрытые заметки Мастера<textarea name="secret_body" rows="4"></textarea></label>
+    <label class="check-row"><input type="checkbox" name="hidden"> Скрыть всю запись от игроков</label>
+  </div>
+  <div class="actions"><button class="button" type="button" id="cancel">Отмена</button><button class="button primary" type="submit">Сохранить</button></div>
+</form></dialog>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
