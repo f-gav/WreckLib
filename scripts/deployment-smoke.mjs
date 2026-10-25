@@ -12,6 +12,7 @@ const expected=[
   ['export.js', 'serializeCampaignExport'],
   ['import.js', 'validateImportSnapshot'],
   ['project-navigation.js', 'matchesCategory'],
+  ['wreck-select.js', 'enhanceSelect'],
   ['workspace.css', '.workspace-nav'],
   ['style.css', '--gold'],
   ['wrecktrack-visual.css', 'font-family:"Neuzeit Antiqua"']

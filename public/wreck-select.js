@@ -1,6 +1,6 @@
 // WreckLib custom single-choice popup. Keeps the existing native <select> as the
 // canonical value so persisted themes and campaign navigation continue to work.
-// Rendered buttons use textContent (not innerHTML from campaign names).
+// Campaign titles are always assigned as plain text, never parsed as markup.
 const ACCENTS={gold:'#d6a85f',blue:'#4f9de8',scarlet:'#ef5b56',purple:'#a879e8'};
 const keys=['ArrowDown','ArrowUp','Home','End'];
 const activeControls=new Set();
@@ -59,6 +59,9 @@ export function enhanceSelect(select,{type='plain'}={}){
  menu.hidden=true;
  trigger.setAttribute('aria-controls',menu.id);
  wrapper.append(trigger,menu);
+ trigger.id=select.id+'-trigger';
+ const associated=document.querySelector('label[for="'+select.id+'"]');
+ if(associated)associated.htmlFor=trigger.id;
  let items=[],cursor=-1;
  const control={
   wrapper,
