@@ -8,7 +8,8 @@ const kinds={folder:'Папка',person:'Персонаж',location:'Локац�
 const viewToken=new URL(location.href).searchParams.get('share');
 const notice=x=>{$('notice').textContent=x||''};
 const check=({data,error})=>{if(error)throw error;return data};
-let client,account=null,campaigns=[],campaign=null,entries=[],selected=null,editing=null,parentId=null,imageUrl=null;
+let client,account=null,campaigns=[],campaign=null,entries=[],selected=null,editing=null,parentId=null,imageUrl=null,moveTargetId=null;
+const collapsedFolders=new Set();
 const writable=()=>campaign?.role==='master'||campaign?.role==='editor';
 const base=()=>client.from('entries');
 
@@ -90,7 +91,7 @@ $('logout').onclick=async()=>{await client.auth.signOut();location.assign(locati
 $('back').onclick=()=>{if(account)home().catch(e=>notice(e.message));else location.assign(location.pathname)};
 
 async function home(){
- campaign=null;selected=null;setMobileView('tree');
+ campaign=null;selected=null;collapsedFolders.clear();setMobileView('tree');
  $('login').hidden=true;$('inside').hidden=true;$('invalid-share').hidden=true;$('home').hidden=false;
  if(!account){$('home').hidden=true;$('login').hidden=false;return}
  campaigns=check(await client.from('campaigns')
@@ -122,7 +123,7 @@ function showInside(){
 
 async function open(cid){
  const found=campaigns.find(c=>c.id===cid);if(!found)return;
- campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;setMobileView('tree');
+ campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;collapsedFolders.clear();setMobileView('tree');
  showInside();
  if(campaign.role==='master')await refreshShareStatus();
  await refresh();
@@ -133,7 +134,7 @@ async function openShared(token){
  try{
   const data=check(await client.rpc('read_shared_campaign',{p_token:token}));
   if(!data||!Array.isArray(data.entries)){$('invalid-share').hidden=false;return}
-  campaign={id:data.id,name:data.name,role:'guest'};entries=data.entries;selected=null;setMobileView('tree');
+  campaign={id:data.id,name:data.name,role:'guest'};entries=data.entries;selected=null;collapsedFolders.clear();setMobileView('tree');
   showInside();tree();$('detail').innerHTML='<p class="muted">Выберите опубликованный материал слева.</p>';
  }catch(err){$('invalid-share').hidden=false;notice('Не удалось открыть ссылку: '+err.message)}
 }
@@ -154,20 +155,86 @@ async function refresh(){
 }
 
 function tree(){
+ const byParent=new Map();
+ for(const entry of entries){
+  const parent=entry.parent_id||null;
+  if(!byParent.has(parent))byParent.set(parent,[]);
+  byParent.get(parent).push(entry);
+ }
+ for(const children of byParent.values()){
+  children.sort((a,b)=>Number(b.kind==='folder')-Number(a.kind==='folder')||
+    a.title.localeCompare(b.title,'ru'));
+ }
  function build(pid,level,seen){
-  return entries.filter(e=>(e.parent_id||null)===pid).map(e=>{
+  return (byParent.get(pid)||[]).map(e=>{
    if(seen.has(e.id))return '';
    const visited=new Set(seen);visited.add(e.id);
-   return '<button type="button" class="tree-item '+(selected?.id===e.id?'active':'')+
-    '" data-entry="'+esc(e.id)+'" style="padding-left:'+(10+level*15)+'px">'+
-    (e.kind==='folder'?'▸ ':'• ')+esc(e.title)+'</button>'+build(e.id,level+1,visited);
+   const isFolder=e.kind==='folder';
+   const collapsed=collapsedFolders.has(e.id);
+   const toggle=isFolder?
+    '<button type="button" class="tree-toggle" data-toggle="'+esc(e.id)+'" aria-label="'+
+    (collapsed?'Развернуть':'Свернуть')+' папку '+esc(e.title)+'" aria-expanded="'+
+    String(!collapsed)+'">'+(collapsed?'▸':'▾')+'</button>':
+    '<span class="tree-spacer" aria-hidden="true"></span>';
+   return '<div class="tree-row" style="--tree-indent:'+(Math.min(level,30)*14)+'px">'+
+    toggle+'<button type="button" class="tree-item '+(selected?.id===e.id?'active':'')+
+    '" data-entry="'+esc(e.id)+'">'+esc(e.title)+'</button></div>'+
+    (isFolder&&!collapsed?build(e.id,level+1,visited):'');
   }).join('');
  }
  $('tree').innerHTML=build(null,0,new Set())||'<p class="muted">Материалов пока нет.</p>';
+ document.querySelectorAll('[data-toggle]').forEach(btn=>btn.onclick=()=>{
+  const id=btn.dataset.toggle;
+  if(collapsedFolders.has(id))collapsedFolders.delete(id);else collapsedFolders.add(id);
+  tree();
+ });
  document.querySelectorAll('[data-entry]').forEach(btn=>btn.onclick=async()=>{
   selected=entries.find(e=>e.id===btn.dataset.entry);tree();setMobileView('detail');await detail();
  });
 }
+
+function isDescendant(candidateId,ancestorId){
+ const lookup=new Map(entries.map(e=>[e.id,e]));
+ let cursor=lookup.get(candidateId),count=0;
+ while(cursor&&count<65){
+  if(cursor.id===ancestorId)return true;
+  cursor=lookup.get(cursor.parent_id);count++;
+ }
+ return count>=65;
+}
+function moveEditor(){
+ if(!writable()||!selected)return;
+ moveTargetId=selected.id;
+ const oldParent=selected.parent_id||'';
+ $('move-description').textContent='Перемещение: '+selected.title;
+ const folderOptions=entries.filter(e=>e.kind==='folder'&&
+  !isDescendant(e.id,moveTargetId)&&
+  (campaign.role==='master'||e.visibility==='published'));
+ const select=$('move-destination');
+ select.innerHTML='<option value="">Корень кампании</option>'+folderOptions.map(e=>
+  '<option value="'+esc(e.id)+'">'+esc(e.title)+'</option>').join('');
+ select.value=oldParent;
+ $('move-submit').disabled=false;
+ $('move-dialog').showModal();
+}
+$('move-cancel').onclick=()=>$('move-dialog').close();
+$('move-form').onsubmit=async event=>{
+ event.preventDefault();
+ if(!writable()||!moveTargetId)return;
+ const targetId=moveTargetId;
+ const destination=$('move-destination').value||null;
+ $('move-submit').disabled=true;
+ try{
+  check(await client.rpc('move_entry',{p_entry_id:targetId,p_parent_id:destination}));
+  $('move-dialog').close();moveTargetId=null;
+  await refresh();
+  selected=entries.find(e=>e.id===targetId)||null;
+  if(destination)collapsedFolders.delete(destination);
+  tree();await detail();
+  notice('Запись перемещена');
+ }catch(err){notice('Перемещение: '+err.message)}
+ finally{$('move-submit').disabled=false}
+};
 
 async function readGuestImage(id){
  const response=await fetch(SUPABASE_URL+'/functions/v1/shared-image',{
@@ -199,10 +266,11 @@ async function detail(){
   '<p class="muted">'+esc(e.description)+'</p><pre>'+esc(e.body)+'</pre>'+
   (campaign.role==='master'&&e.secret_body?
     '<div class="secret"><b>Только Мастер</b><pre>'+esc(e.secret_body)+'</pre></div>':'')+
-  (writable()?'<div class="actions"><button class="button" id="edit-entry" type="button">Редактировать</button>'+
+  (writable()?'<div class="actions"><button class="button" id="edit-entry" type="button">Редактировать</button><button class="button" id="move-entry" type="button">Переместить</button>'+
    '<label>Иллюстрация <input type="file" id="image-file" accept="image/*"></label></div>':'');
  if(writable()){
   $('edit-entry').onclick=()=>editor(e.kind,e);
+  $('move-entry').onclick=moveEditor;
   $('image-file').onchange=upload;
  }
 }

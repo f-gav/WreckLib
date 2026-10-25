@@ -108,6 +108,19 @@
   </div>
   <div class="actions"><button class="button" type="button" id="cancel">Отмена</button><button class="button primary" type="submit">Сохранить</button></div>
 </form></dialog>
+<dialog id="move-dialog" aria-labelledby="move-title">
+  <form id="move-form" class="dialog-form">
+    <p class="eyebrow">СТРУКТУРА КАМПАНИИ</p>
+    <h2 id="move-title">Переместить запись</h2>
+    <p class="muted" id="move-description"></p>
+    <label>Новая папка<select name="destination" id="move-destination"></select></label>
+    <p class="muted">Материалы можно перемещать только внутри одной кампании. Скрытые папки доступны только Мастеру.</p>
+    <div class="actions">
+      <button class="button" type="button" id="move-cancel">Отмена</button>
+      <button class="button primary" type="submit" id="move-submit">Переместить</button>
+    </div>
+  </form>
+</dialog>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

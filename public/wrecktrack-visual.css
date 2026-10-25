@@ -101,3 +101,15 @@ dialog .actions{position:sticky;bottom:-28px;background:var(--panel);padding:12p
 @media(prefers-reduced-motion:reduce){
  .card{transition:none}
 }
+
+/* WreckLib hierarchy navigation — consistent with original WreckTrack's restrained controls. */
+.tree-row{display:flex;gap:4px;align-items:center;padding-left:var(--tree-indent,0px);min-width:0}
+.tree-row .tree-item{flex:1;min-width:0;min-height:40px;text-align:left;overflow-wrap:anywhere}
+.tree-row .tree-toggle{width:28px;min-width:28px;height:35px;border-radius:7px;
+ padding:0!important;background:transparent!important;border:1px solid transparent!important;
+ color:var(--gold)!important;font-size:17px}
+.tree-row .tree-toggle:hover,.tree-row .tree-toggle:focus-visible{border-color:var(--gold2)!important}
+.tree-spacer{display:inline-block;width:28px;min-width:28px}
+#move-dialog{width:min(95vw,550px)}
+#move-description{white-space:pre-wrap}
+@media(max-width:550px){.tree-row .tree-item{min-height:45px}.tree-row .tree-toggle{min-height:44px}}
