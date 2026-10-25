@@ -1,9 +1,41 @@
 # WreckLib
 
-Independent campaign encyclopaedia with campaign-scoped roles (Master, Player+, Player), hierarchical articles, hidden GM content and image support.
+Отдельная энциклопедия настольных кампаний, визуально вдохновлённая WreckTrack. Независимый репозиторий, отдельные ссылки и запланированная инфраструктура Cloudflare.
 
-This is a new project and **does not use WreckTrack or At your service! production data**.
+## Возможности первого этапа
+- Несколько изолированных кампаний, приглашения по email.
+- Роли на уровне кампаний: Мастер (master), Игрок+ (editor), Игрок (viewer).
+- Вложенные папки, статьи, персонажи, локации, предметы, организации, события.
+- Скрытые записи и отдельные секретные заметки Мастера. Сервер фильтрует записи, в том числе наследование скрытости от папок.
+- WebP-портреты, сжатие на клиенте, приватная выдача из R2 через API.
+- Тёмная адаптивная тема.
 
-## Status
+## Развёртывание (только в самостоятельном аккаунте Cloudflare)
+1. `npm install`, `npx wrangler login`.
+2. `npx wrangler d1 create wrecklib-db`. Указать полученный ID в `wrangler.jsonc`.
+3. Активировать R2 и создать `npx wrangler r2 bucket create wrecklib-images`.
+4. Выполнить `npx wrangler d1 execute wrecklib-db --remote --file migrations/0001_init.sql`.
+5. Настроить **Cloudflare Access** для полного адреса Worker, включая `/api/*`, с One-time PIN или провайдером входа. Защита Access обязательна.
+6. Указать `ACCESS_TEAM_DOMAIN` и `ACCESS_AUD` вашего приложения Access в `wrangler.jsonc`.
+7. `npm run check`, `npm run deploy`. Получившийся `*.workers.dev` не связан с WreckTrack.
+8. В Access разрешить нужные адреса email. Внутри WreckLib отдельно выдавать права на каждую кампанию.
 
-Initial repository setup. Deployment and Cloudflare resources are not yet provisioned. The application source is being migrated from the WreckLib 0.1 starter package.
+**Важно:** Не публикуйте Worker, пока Access не защищает весь сайт. Приложение проверяет подпись и audience JWT на стороне сервера; без Access API не работает. Никогда не сохраняйте секреты Cloudflare в репозитории.
+
+## Локальная разработка
+```bash
+npm install
+npm run check
+npm run dev
+```
+
+Для работы API требуется настроенное окружение D1, R2 и Cloudflare Access; статический интерфейс без облака не является полнофункциональным.
+
+## Ограничения v0.1
+- Markdown пока показывается обычным текстом.
+- Нет корзины, восстановления ревизий, настройки роли после приглашения, графа ссылок, массового экспорта и квот.
+- Реальная Cloudflare инфраструктура и публичный деплой ещё не созданы.
+- Нужны интеграционные и E2E тесты доступа перед приглашением игроков.
+- Состояние доступности нужно проверять по GitHub Actions и после настройки Worker.
+
+Репозиторий не содержит данных WreckTrack или At your service!.
