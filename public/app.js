@@ -5,6 +5,7 @@ import {parseTags,collectVisibleTags,filterByTag,normalizedTag} from './tags.js'
 import {serializeCampaignExport,exportFilename} from './export.js';
 import {validateImportSnapshot,buildImageBackup,extractImageBlob,MAX_ARCHIVE_BYTES} from './import.js';
 import {CATEGORIES,categorize,creationDefaults} from './project-navigation.js';
+import {enhanceSelect} from './wreck-select.js';
 
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -62,6 +63,7 @@ function populateCampaignSelector(){
  if(guestShare){navCampaignId=campaign.id;picker.querySelector('option[value="all"]').remove()}
  if(!options.some(c=>c.id===navCampaignId))navCampaignId=guestShare?campaign.id:'all';
  picker.value=navCampaignId;
+ campaignControl.refresh();
 }
 $('appearance-open').onclick=()=>$('appearance-dialog').showModal();
 $('appearance-close').onclick=()=>$('appearance-dialog').close();
@@ -112,6 +114,11 @@ $('font-choice').onchange=event=>{
  document.documentElement.dataset.font=font;
  localStorage.setItem('wrecklib-font',font);
 };
+// Keep the native values as the source of truth for local theme preferences.
+const accentControl=enhanceSelect($('accent-choice'),{type:'accent'});
+const fontControl=enhanceSelect($('font-choice'),{type:'font'});
+const campaignControl=enhanceSelect($('workspace-campaign'),{type:'campaign'});
+
 function setMobileView(view){
  const active=view==='detail'?'detail':'tree';
  document.documentElement.dataset.mobileView=active;
@@ -318,7 +325,9 @@ async function showCatalog(section){
  updateWorkspaceNavigation();
  $('login').hidden=true;$('home').hidden=true;$('inside').hidden=true;$('invalid-share').hidden=true;
  $('catalog').hidden=false;setWorkspaceVisible(true);
- $('catalog-eyebrow').textContent=navCampaignId==='all'?'ВСЕ КАМПАНИИ':'КАМПАНИЯ';
+ const chosen=campaigns.find(c=>c.id===navCampaignId);
+ $('catalog-eyebrow').textContent=navCampaignId==='all'?'ВСЕ КАМПАНИИ':
+  chosen?.name||(campaign?.id===navCampaignId?campaign.name:'Кампания');
  const category=CATEGORIES[section];
  $('catalog-title').textContent=category?.title||'Все материалы';
  $('catalog-subtitle').textContent=category?.subtitle||'Статьи и записи вашей энциклопедии';
@@ -629,8 +638,11 @@ $('entry-form').onsubmit=async ev=>{
     p_secret_body:campaign.role==='master'?f.elements.secret_body.value:null
    }));
   }else{
-   Object.assign(entry,{campaign_id:campaign.id,parent_id:parentId,kind:f.elements.kind.value,created_by:account.id});
-   id=check(await base().insert(entry).select('id').single()).id;
+   // INSERT RETURNING evaluates entries SELECT RLS before the new row can
+   // be resolved by visible_entry(). Allocate UUID locally and INSERT only.
+   id=crypto.randomUUID();
+   Object.assign(entry,{id,campaign_id:campaign.id,parent_id:parentId,kind:f.elements.kind.value,created_by:account.id});
+   check(await base().insert(entry));
    if(campaign.role==='master'){
     check(await client.from('entry_secrets').upsert({entry_id:id,secret_body:f.elements.secret_body.value}));
    }

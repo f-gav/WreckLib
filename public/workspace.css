@@ -104,3 +104,70 @@ body.workspace-active #inside{max-width:1600px}
 
 /* Dialog selects override earlier mobile-sized legacy selectors. */
 .appearance-dialog #accent-choice,.appearance-dialog #font-choice{width:100%!important;max-width:none!important;min-width:0!important}
+
+
+/* WreckTrack-inspired dropdowns: never use light OS-native option popups. */
+.wreck-select{position:relative;width:100%;min-width:0;color-scheme:dark}
+.wreck-select .wreck-select-native{
+ position:absolute!important;width:1px!important;height:1px!important;
+ min-height:0!important;max-width:1px!important;padding:0!important;margin:0!important;
+ opacity:0!important;pointer-events:none!important;overflow:hidden!important;
+ clip-path:inset(50%)!important;left:0;top:0
+}
+.wreck-select-trigger{
+ width:100%!important;min-height:44px;display:flex;align-items:center;justify-content:space-between;
+ gap:12px;text-align:left;background:var(--panel2)!important;color:var(--paper)!important;
+ border:1px solid var(--gold2)!important;border-radius:11px!important;
+ padding:10px 15px!important;cursor:pointer
+}
+.wreck-select-trigger:hover,.wreck-select-trigger[aria-expanded="true"]{
+ border-color:var(--gold)!important;background:rgba(var(--accent-rgb),.06)!important
+}
+.wreck-select-trigger:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.wreck-select-current{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.wreck-select-caret{font-size:22px;line-height:1;flex-shrink:0;transform:translateY(-4px);color:var(--gold);transition:transform .13s}
+.wreck-select-trigger[aria-expanded="true"] .wreck-select-caret{transform:rotate(180deg) translateY(3px)}
+.wreck-select-menu{
+ position:fixed;top:0;left:0;z-index:11000;display:flex;flex-direction:column;
+ overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+ scrollbar-color:var(--gold) var(--panel);
+ color-scheme:dark;background:var(--panel)!important;border:1px solid var(--gold2);
+ border-radius:10px;box-shadow:0 20px 48px rgba(0,0,0,.64);padding:5px;gap:2px;
+}
+.wreck-select-menu[hidden]{display:none!important}
+.wreck-select-option{
+ display:flex;align-items:center;gap:11px;min-height:40px;padding:7px 10px!important;
+ width:100%;border:1px solid transparent!important;border-radius:7px!important;
+ color:var(--paper)!important;background:transparent!important;text-align:left!important;
+ cursor:pointer;white-space:normal;overflow-wrap:anywhere;font-size:14px
+}
+.wreck-select-option:hover,.wreck-select-option:focus-visible{
+ background:rgba(var(--accent-rgb),.13)!important;
+ border-color:rgba(var(--accent-rgb),.24)!important;outline:0
+}
+.wreck-select-option.is-selected{color:var(--gold)!important}
+.wreck-select-mark{
+ display:grid;place-items:center;flex:0 0 19px;height:19px;
+ border:1px solid var(--muted);border-radius:4px;color:var(--panel);
+ font-size:14px;font-weight:800;line-height:1
+}
+.wreck-select-option.is-selected .wreck-select-mark{
+ background:var(--gold);border-color:var(--gold);
+}
+.wreck-select-symbol{width:19px;min-width:19px;text-align:center;font-size:11px;color:var(--gold);line-height:1}
+.wreck-select-swatch{height:19px;border-radius:5px;border:1px solid rgba(255,255,255,.17)}
+.wreck-select-option-title{flex:1;min-width:0}
+.appearance-dialog{overflow:visible!important}
+.appearance-dialog .settings-fields .wreck-select{margin-bottom:8px}
+.appearance-dialog .settings-fields .wreck-select-trigger{width:100%!important;max-width:none!important}
+.workspace-chooser .wreck-select{width:100%}
+.workspace-chooser .wreck-select-trigger{min-height:43px}
+@media(max-width:850px){
+ .workspace-chooser .wreck-select{width:155px}
+ .workspace-chooser .wreck-select-trigger{min-height:38px;padding:8px!important}
+ .workspace-chooser .wreck-select-current{font-size:12px}
+}
+@media(max-width:550px){.workspace-chooser .wreck-select{width:125px}}
+
+/* Show the campaign name with its original case above the category title. */
+#catalog-eyebrow{text-transform:none;overflow-wrap:anywhere}
