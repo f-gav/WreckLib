@@ -188,3 +188,21 @@ dialog .actions{position:sticky;bottom:-28px;background:var(--panel);padding:12p
 .search-hit-tags{display:flex;gap:4px;flex-wrap:wrap}
 .search-hit-tags .tag-pill{font-size:10px;padding:2px 6px}
 @media(max-width:550px){.markdown-body th,.markdown-body td{padding:8px 10px}.markdown-body table{font-size:12px}}
+
+/* Stage 5 — history and export in the existing WreckTrack style. */
+.page-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.history-layout{display:grid;grid-template-columns:minmax(135px,215px) minmax(0,1fr);gap:15px;margin:18px 0}
+.history-list{display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow:auto}
+.history-item{display:grid!important;justify-content:stretch!important;justify-items:start;text-align:left!important;gap:2px;min-height:55px}
+.history-item small{color:var(--muted);font-size:11px}
+.history-item span{font-size:12px;overflow-wrap:anywhere}
+.history-preview{min-height:180px;max-height:52vh;overflow:auto;border:1px solid var(--line);padding:15px;border-radius:10px;background:var(--panel2)}
+#history-dialog{width:min(96vw,850px)}
+@media(max-width:650px){
+ .history-layout{grid-template-columns:1fr}
+ .history-list{flex-direction:row;max-height:125px;overflow:auto}
+ .history-item{min-width:140px}
+ .history-preview{max-height:45vh}
+ .page-tools{width:100%}
+ .page-tools .button{flex:1}
+}

@@ -2,6 +2,7 @@ import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import {SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY} from './config.js';
 import {renderMarkdown,searchEntries,findBacklinks,escapeHtml} from './markdown.js';
 import {parseTags,collectVisibleTags,filterByTag,normalizedTag} from './tags.js';
+import {serializeCampaignExport,exportFilename} from './export.js';
 
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -10,7 +11,7 @@ const kinds={folder:'Папка',person:'Персонаж',location:'Локац�
 const viewToken=new URL(location.href).searchParams.get('share');
 const notice=x=>{$('notice').textContent=x||''};
 const check=({data,error})=>{if(error)throw error;return data};
-let client,account=null,campaigns=[],campaign=null,entries=[],selected=null,editing=null,parentId=null,imageUrl=null,moveTargetId=null;
+let client,account=null,campaigns=[],campaign=null,entries=[],selected=null,editing=null,parentId=null,imageUrl=null,moveTargetId=null,historyEntryId=null,historyRevisionId=null;
 const collapsedFolders=new Set();
 const writable=()=>campaign?.role==='master'||campaign?.role==='editor';
 const base=()=>client.from('entries');
@@ -120,6 +121,7 @@ function showInside(){
  $('new-folder').hidden=$('new-card').hidden=!writable();
  $('invite-panel').hidden=$('share-panel').hidden=$('trash-panel').hidden=campaign.role!=='master';
  $('readonly-indicator').hidden=writable();
+ $('export-json').hidden=campaign.role!=='master';
  $('share-link').textContent='';
 }
 
@@ -372,6 +374,9 @@ async function detail(){
     $('detail').querySelector('.actions').insertAdjacentHTML('beforeend',
       '<button type="button" class="button danger-button" id="trash-entry">В корзину</button>');
     $('trash-entry').onclick=trashSelected;
+    $('detail').querySelector('.actions').insertAdjacentHTML('beforeend',
+      '<button type="button" class="button" id="history-open">История версий</button>');
+    $('history-open').onclick=()=>openHistory(e.id);
   }
  }
 }
@@ -536,6 +541,102 @@ $('revoke-share').onclick=async()=>{
   $('share-link').textContent='';await refreshShareStatus();notice('Гостевой доступ по ссылке закрыт.');
  }catch(err){notice(err.message)}
 };
+
+
+async function openHistory(id){
+ if(campaign?.role!=='master'||!entries.some(e=>e.id===id))return;
+ historyEntryId=id;historyRevisionId=null;
+ $('history-restore').disabled=true;
+ $('history-list').textContent='Загрузка версий…';
+ $('history-preview').innerHTML='<p class="muted">Выберите версию слева.</p>';
+ $('history-title').textContent='История: '+(entries.find(e=>e.id===id)?.title||'Статья');
+ $('history-dialog').showModal();
+ try{
+  const versions=check(await client.rpc('list_entry_revisions',{p_entry_id:id}));
+  if(historyEntryId!==id)return;
+  $('history-list').innerHTML=versions.map(version=>
+   '<button class="button history-item" type="button" data-revision="'+esc(version.revision_id)+'">'+
+   '<b>Версия '+esc(version.revision_number)+'</b>'+
+   '<small>'+esc(new Date(version.created_at).toLocaleString('ru-RU'))+'</small>'+
+   '<span>'+esc(version.title)+'</span></button>').join('')||'<p class="muted">История пуста.</p>';
+  $('history-list').querySelectorAll('[data-revision]').forEach(btn=>btn.onclick=async()=>{
+   const versionId=Number(btn.dataset.revision);
+   if(!Number.isSafeInteger(versionId))return;
+   $('history-restore').disabled=true;
+   historyRevisionId=null;
+   try{
+    const snapshot=check(await client.rpc('read_entry_revision',
+      {p_entry_id:historyEntryId,p_revision_id:versionId}));
+    if(historyEntryId!==id)return;
+    historyRevisionId=versionId;
+    $('history-preview').innerHTML='<h3>'+esc(snapshot.title)+'</h3>'+
+     '<p>'+esc(snapshot.description||'')+'</p>'+
+     '<div class="markdown-body">'+renderMarkdown(snapshot.body||'',entries)+'</div>'+
+     '<p class="muted">Теги: '+esc((snapshot.tags||[]).join(', ')||'нет')+'</p>';
+    $('history-restore').disabled=false;
+   }catch(err){notice('История: '+err.message)}
+  });
+ }catch(err){notice('История: '+err.message);$('history-list').textContent='Не удалось загрузить историю.'}
+}
+$('history-close').onclick=()=>$('history-dialog').close();
+$('history-dialog').addEventListener('close',()=>{historyEntryId=null;historyRevisionId=null});
+$('history-restore').onclick=async()=>{
+ if(campaign?.role!=='master'||!historyEntryId||!historyRevisionId)return;
+ if(!confirm('Восстановить содержимое выбранной версии? Текущая версия останется в истории.'))return;
+ const id=historyEntryId,revisionId=historyRevisionId;
+ $('history-restore').disabled=true;
+ try{
+  check(await client.rpc('restore_entry_revision',{p_entry_id:id,p_revision_id:revisionId}));
+  $('history-dialog').close();
+  await refresh();
+  selected=entries.find(e=>e.id===id)||null;
+  tree();await detail();
+  notice('Версия восстановлена; текущее состояние сохранено новой записью истории.');
+ }catch(err){notice('Восстановление версии: '+err.message)}
+ finally{$('history-restore').disabled=false}
+};
+
+async function fetchAllCampaignEntries(cid){
+ const rows=[];const pageSize=500;
+ for(let start=0;start<100000;start+=pageSize){
+  const part=check(await client.from('entries')
+   .select('id,campaign_id,parent_id,kind,title,description,body,tags,visibility,image_path,updated_at')
+   .eq('campaign_id',cid).order('id',{ascending:true}).range(start,start+pageSize-1));
+  rows.push(...part);
+  if(part.length<pageSize)return rows;
+ }
+ throw new Error('Слишком много материалов для одного JSON-экспорта');
+}
+async function exportCampaignJSON(){
+ if(!account||campaign?.role!=='master')return;
+ const currentCampaign={id:campaign.id,name:campaign.name,role:campaign.role};
+ const button=$('export-json');
+ button.disabled=true;
+ try{
+  // Ensure the Master role is current rather than trusting cached client state.
+  check(await client.rpc('list_campaign_members',{p_campaign_id:currentCampaign.id}));
+  const all=await fetchAllCampaignEntries(currentCampaign.id);
+  const secrets=[];
+  for(let i=0;i<all.length;i+=100){
+   const ids=all.slice(i,i+100).map(e=>e.id);
+   if(ids.length){
+    const part=check(await client.from('entry_secrets')
+     .select('entry_id,secret_body').in('entry_id',ids));
+    secrets.push(...part);
+   }
+  }
+  check(await client.rpc('list_campaign_members',{p_campaign_id:currentCampaign.id}));
+  const json=serializeCampaignExport(currentCampaign,all,secrets,new Date().toISOString());
+  const url=URL.createObjectURL(new Blob([json],{type:'application/json;charset=utf-8'}));
+  const a=document.createElement('a');
+  a.href=url;a.download=exportFilename(currentCampaign.name);
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  notice('JSON-экспорт подготовлен. Файлы изображений и история версий не включены.');
+ }catch(err){notice('Ошибка JSON-экспорта: '+err.message)}
+ finally{button.disabled=false}
+}
+$('export-json').onclick=exportCampaignJSON;
 
 async function upload(ev){
  const file=ev.target.files?.[0];if(!file||!selected||!writable())return;
