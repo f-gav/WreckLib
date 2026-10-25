@@ -46,6 +46,64 @@ export function renderInline(source,visible=[]){
  }
  return output+formatPlain(input.slice(previous));
 }
+// GFM-style pipe tables. Raw HTML remains escaped via renderInline.
+function parseTableCells(line){
+ const trimmed=String(line).trim();
+ if(!trimmed.includes('|'))return null;
+ const withoutEdges=trimmed.replace(/^\|/,'').replace(/(?<!\\)\|$/,'');
+ return withoutEdges.split(/(?<!\\)\|/).map(cell=>cell.replace(/\\\|/g,'|').trim());
+}
+function readTable(lines,index,visible){
+ if(index+1>=lines.length)return null;
+ const heading=parseTableCells(lines[index]),divider=parseTableCells(lines[index+1]);
+ if(!heading||!divider||heading.length!==divider.length||heading.length<2)return null;
+ if(!divider.every(s=>/^:?-{3,}:?$/.test(s)))return null;
+ const aligns=divider.map(s=>s.startsWith(':')&&s.endsWith(':')?'center':s.endsWith(':')?'right':s.startsWith(':')?'left':'');
+ const alignment=i=>aligns[i]?' style="text-align:'+aligns[i]+'"':'';
+ const head='<thead><tr>'+heading.map((cell,i)=>'<th'+alignment(i)+'>'+renderInline(cell,visible)+'</th>').join('')+'</tr></thead>';
+ let i=index+2;const rows=[];
+ while(i<lines.length&&lines[i].trim()){
+  const cells=parseTableCells(lines[i]);if(!cells)break;
+  rows.push('<tr>'+heading.map((_,j)=>'<td'+alignment(j)+'>'+renderInline(cells[j]||'',visible)+'</td>').join('')+'</tr>');
+  i++;
+ }
+ return {html:'<div class="md-table-scroll"><table>'+head+'<tbody>'+rows.join('')+'</tbody></table></div>',next:i};
+}
+// Nested lists accept up to eight indentation levels and mixed UL/OL nesting.
+function listMarker(line){
+ const m=/^([ ]{0,28})([-+*]|\d+[.)])\s+(.+)$/.exec(line);
+ if(!m)return null;
+ return {indent:m[1].length,ordered:/^\d/.test(m[2]),body:m[3]};
+}
+function readList(lines,index,visible,depth=0){
+ const first=listMarker(lines[index]);
+ if(!first||depth>7)return null;
+ const base=first.indent,ordered=first.ordered;
+ const items=[];let i=index;
+ while(i<lines.length){
+  const marker=listMarker(lines[i]);
+  if(!marker||marker.indent!==base||marker.ordered!==ordered)break;
+  i++;
+  let item=renderInline(marker.body,visible);
+  while(i<lines.length){
+   if(!lines[i].trim())break;
+   const next=listMarker(lines[i]);
+   if(next&&next.indent>base&&depth<7){
+    const child=readList(lines,i,visible,depth+1);
+    if(child&&child.next>i){item+=child.html;i=child.next;continue}
+   }
+   if(next)break;
+   const line=lines[i];
+   const spaces=(/^( *)/.exec(line)||['',''])[1].length;
+   if(spaces<=base)break;
+   item+='<br>'+renderInline(line.trim(),visible);i++;
+  }
+  items.push('<li>'+item+'</li>');
+ }
+ if(!items.length)return null;
+ const tag=ordered?'ol':'ul';
+ return {html:'<'+tag+'>'+items.join('')+'</'+tag+'>',next:i};
+}
 export function renderMarkdown(source,visible=[]){
  const lines=String(source??'').replace(/\r\n?/g,'\n').split('\n');
  let i=0;const out=[];
@@ -58,6 +116,8 @@ export function renderMarkdown(source,visible=[]){
    if(i<lines.length)i++;
    out.push('<pre class="md-code"><code>'+escapeHtml(body.join('\n'))+'</code></pre>');continue;
   }
+  const table=readTable(lines,i,visible);
+  if(table){out.push(table.html);i=table.next;continue}
   const heading=/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
   if(heading){
    const n=heading[1].length;out.push('<h'+n+'>'+renderInline(heading[2],visible)+'</h'+n+'>');i++;continue;
@@ -68,25 +128,18 @@ export function renderMarkdown(source,visible=[]){
    while(i<lines.length&&/^\s{0,3}>\s?/.test(lines[i]))quote.push(renderInline(lines[i++].replace(/^\s{0,3}>\s?/,''),visible));
    out.push('<blockquote>'+quote.join('<br>')+'</blockquote>');continue;
   }
-  const list=/^\s{0,3}([-+*]|\d+\.)\s+(.+)$/.exec(line);
-  if(list){
-   const ordered=/^\d/.test(list[1]),items=[];
-   while(i<lines.length){
-    const next=/^\s{0,3}([-+*]|\d+\.)\s+(.+)$/.exec(lines[i]);
-    if(!next||(/^\d/.test(next[1])!==ordered))break;
-    items.push('<li>'+renderInline(next[2],visible)+'</li>');i++;
-   }
-   const tag=ordered?'ol':'ul';out.push('<'+tag+'>'+items.join('')+'</'+tag+'>');continue;
-  }
-  const text=[];
+  const list=readList(lines,i,visible);
+  if(list){out.push(list.html);i=list.next;continue}
+  const paragraph=[];
   while(i<lines.length&&lines[i].trim()){
-   if(text.length&&/^\s{0,3}(?:#{1,6}\s+|>\s?|[-+*]\s+|\d+\.\s+|\x60{3,})/.test(lines[i]))break;
-   text.push(renderInline(lines[i++],visible));
+   if(paragraph.length&&(/^\s{0,3}(?:#{1,6}\s+|>\s?|\x60{3,})/.test(lines[i])||listMarker(lines[i])||readTable(lines,i,visible)))break;
+   paragraph.push(renderInline(lines[i++],visible));
   }
-  out.push('<p>'+text.join('<br>')+'</p>');
+  out.push('<p>'+paragraph.join('<br>')+'</p>');
  }
  return out.join('\n');
 }
+
 export function findBacklinks(targetId,visible=[]){
  const found=[];
  for(const entry of visible){
