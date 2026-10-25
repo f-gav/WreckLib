@@ -51,6 +51,9 @@ export function validateImportSnapshot(data){
   }
  }
  if(failures.length)throw new Error('Проверка не пройдена: '+failures.slice(0,6).join('; '));
+ const sqlDocument={format:data.format,schema_version:data.schema_version,campaign:data.campaign,entries:data.entries};
+ if(new TextEncoder().encode(JSON.stringify(sqlDocument)).length>3000000)
+  throw new Error('Текстовая часть архива превышает предел импорта 3 МБ');
  if(new TextEncoder().encode(JSON.stringify(data)).length>MAX_ARCHIVE_BYTES)
   throw new Error('Размер резервной копии превышает 36 МБ');
  if(data.campaign?.name===undefined||typeof data.campaign.name!=='string'||data.campaign.name.length>100)
