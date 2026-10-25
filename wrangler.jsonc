@@ -1,0 +1,9 @@
+{
+  "name": "wrecklib",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-25",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "d1_databases": [{ "binding": "DB", "database_name": "wrecklib-db", "database_id": "REPLACE_WITH_D1_DATABASE_ID" }],
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "wrecklib-images" }],
+  "vars": { "ACCESS_TEAM_DOMAIN": "", "ACCESS_AUD": "" }
+}
