@@ -1,6 +1,7 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import {SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY} from './config.js';
 import {renderMarkdown,searchEntries,findBacklinks,escapeHtml} from './markdown.js';
+import {parseTags,collectVisibleTags,filterByTag,normalizedTag} from './tags.js';
 
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -124,7 +125,7 @@ function showInside(){
 
 async function open(cid){
  const found=campaigns.find(c=>c.id===cid);if(!found)return;
- campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;collapsedFolders.clear();$('entry-search').value='';setMobileView('tree');
+ campaign={...found,role:found.memberships[0]?.role};entries=[];selected=null;collapsedFolders.clear();$('entry-search').value='';$('tag-filter').value='';setMobileView('tree');
  showInside();
  if(campaign.role==='master')await Promise.all([refreshShareStatus(),refreshMembers(),refreshTrash()]);
  await refresh();
@@ -135,15 +136,15 @@ async function openShared(token){
  try{
   const data=check(await client.rpc('read_shared_campaign',{p_token:token}));
   if(!data||!Array.isArray(data.entries)){$('invalid-share').hidden=false;return}
-  campaign={id:data.id,name:data.name,role:'guest'};entries=data.entries;selected=null;collapsedFolders.clear();$('entry-search').value='';setMobileView('tree');
-  showInside();tree();renderSearch();$('detail').innerHTML='<p class="muted">Выберите опубликованный материал слева.</p>';
+  campaign={id:data.id,name:data.name,role:'guest'};entries=data.entries;selected=null;collapsedFolders.clear();$('entry-search').value='';$('tag-filter').value='';setMobileView('tree');
+  showInside();tree();populateTagFilter();renderSearch();$('detail').innerHTML='<p class="muted">Выберите опубликованный материал слева.</p>';
  }catch(err){$('invalid-share').hidden=false;notice('Не удалось открыть ссылку: '+err.message)}
 }
 
 async function refresh(){
  if(!campaign||campaign.role==='guest')return;
  entries=check(await base()
-  .select('id,campaign_id,parent_id,kind,title,description,body,visibility,image_path,updated_at')
+  .select('id,campaign_id,parent_id,kind,title,description,body,tags,visibility,image_path,updated_at')
   .eq('campaign_id',campaign.id).order('updated_at',{ascending:false}));
  if(campaign.role==='master'&&entries.length){
   const secrets=check(await client.from('entry_secrets').select('entry_id,secret_body')
@@ -151,7 +152,7 @@ async function refresh(){
   const lookup=new Map(entries.map(e=>[e.id,e]));
   secrets.forEach(s=>{if(lookup.has(s.entry_id))lookup.get(s.entry_id).secret_body=s.secret_body});
  }
- tree();renderSearch();
+ tree();populateTagFilter();renderSearch();
  if(selected){selected=entries.find(e=>e.id===selected.id)||null;await detail()}
 }
 
@@ -252,16 +253,30 @@ $('detail').addEventListener('click',event=>{
  event.preventDefault();
  navigateToVisibleEntry(link.dataset.wikiTarget);
 });
+
+function populateTagFilter(){
+ const selector=$('tag-filter'),previous=selector.value;
+ const options=collectVisibleTags(entries);
+ selector.innerHTML='<option value="">Все теги</option>'+
+  options.map(tag=>'<option value="'+esc(tag)+'">'+esc(tag)+'</option>').join('');
+ selector.value=options.includes(previous)?previous:'';
+}
+$('tag-filter').addEventListener('change',renderSearch);
+
 function renderSearch(){
- const search=$('entry-search'),results=$('search-results'),query=search.value.trim();
- $('tree').hidden=!!query;
- results.hidden=!query;
- if(!query){results.replaceChildren();return}
- const hits=searchEntries(entries,query,40);
+ const query=$('entry-search').value.trim(),tag=$('tag-filter').value,results=$('search-results');
+ const active=!!query||!!tag;
+ $('tree').hidden=active;
+ results.hidden=!active;
+ if(!active){results.replaceChildren();return}
+ const subset=filterByTag(entries,tag);
+ const hits=query?searchEntries(subset,query,40):subset.slice().sort((a,b)=>a.title.localeCompare(b.title,'ru'))
+   .slice(0,80).map(entry=>({entry,excerpt:entry.description||''}));
  results.innerHTML=hits.map(({entry,excerpt})=>
   '<button type="button" class="search-hit" data-search-target="'+esc(entry.id)+'">'+
-   '<strong>'+esc(entry.title)+'</strong>'+
-   (excerpt?'<small>'+esc(excerpt)+'</small>':'')+'</button>'
+  '<strong>'+esc(entry.title)+'</strong>'+
+  (Array.isArray(entry.tags)&&entry.tags.length?'<span class="search-hit-tags">'+entry.tags.map(t=>'<span class="tag-pill">'+esc(t)+'</span>').join('')+'</span>':'')+
+  (excerpt?'<small>'+esc(excerpt)+'</small>':'')+'</button>'
  ).join('')||'<p class="muted">Ничего не найдено среди доступных материалов.</p>';
  results.querySelectorAll('[data-search-target]').forEach(btn=>btn.onclick=()=>{
   navigateToVisibleEntry(btn.dataset.searchTarget);
@@ -293,6 +308,8 @@ document.querySelectorAll('[data-md]').forEach(button=>button.addEventListener('
   case 'italic':insertMarkdown('*','*','курсив');break;
   case 'heading':insertMarkdown('\n## ','\n','Заголовок');break;
   case 'list':insertMarkdown('\n- ','\n','пункт');break;
+  case 'nested-list':insertMarkdown('\n- Раздел\n  - ','\n','подпункт');break;
+  case 'table':insertMarkdown('\n| Название | Описание |\n| :--- | ---: |\n| ',' | значение |\n','строка');break;
   case 'quote':insertMarkdown('\n> ','\n','цитата');break;
   case 'code':insertMarkdown('\x60','\x60','код');break;
   case 'link':insertMarkdown('[','](https://example.com)','текст ссылки');break;
@@ -331,13 +348,22 @@ async function detail(){
  }
  $('detail').innerHTML=portrait+
   '<div class="eyebrow">'+esc(kinds[e.kind]||e.kind)+'</div><h2>'+esc(e.title)+'</h2>'+
-  '<p class="muted">'+esc(e.description)+'</p><div class="markdown-body">'+renderMarkdown(e.body,entries)+'</div>'+
+  '<p class="muted">'+esc(e.description)+'</p>'+
+  (Array.isArray(e.tags)&&e.tags.length?'<div class="article-tags">'+e.tags.map(tag=>
+   '<button type="button" class="tag-pill tag-action" data-tag="'+esc(tag)+'">#'+esc(tag)+'</button>').join('')+'</div>':'')+
+  '<div class="markdown-body">'+renderMarkdown(e.body,entries)+'</div>'+
   (findBacklinks(e.id,entries).length?'<section class="backlinks"><h3>Ссылаются на эту статью</h3>'+
     findBacklinks(e.id,entries).map(back=>'<button type="button" class="button backlink-item" data-wiki-target="'+esc(back.id)+'">'+esc(back.title)+'</button>').join('')+'</section>':'')+
   (campaign.role==='master'&&e.secret_body?
     '<div class="secret"><b>Только Мастер</b><pre>'+esc(e.secret_body)+'</pre></div>':'')+
   (writable()?'<div class="actions"><button class="button" id="edit-entry" type="button">Редактировать</button><button class="button" id="move-entry" type="button">Переместить</button>'+
    '<label>Иллюстрация <input type="file" id="image-file" accept="image/*"></label></div>':'');
+ $('detail').querySelectorAll('[data-tag]').forEach(btn=>btn.onclick=()=>{
+  const tag=normalizedTag(btn.dataset.tag);
+  populateTagFilter();
+  $('tag-filter').value=tag;
+  renderSearch();setMobileView('tree');
+ });
  if(writable()){
   $('edit-entry').onclick=()=>editor(e.kind,e);
   $('move-entry').onclick=moveEditor;
@@ -354,7 +380,7 @@ function editor(kind,e=null){
  editing=e;const f=$('entry-form');f.reset();
  f.elements.kind.value=kind;f.elements.kind.disabled=!!e;
  f.elements.title.value=e?.title||'';f.elements.description.value=e?.description||'';
- f.elements.body.value=e?.body||'';f.elements.secret_body.value=e?.secret_body||'';
+ f.elements.body.value=e?.body||'';f.elements.tags.value=(e?.tags||[]).join(', ');f.elements.secret_body.value=e?.secret_body||'';
  f.elements.hidden.checked=e?.visibility==='master';
  $('gm-fields').hidden=campaign.role!=='master';
  $('editor-title').textContent=e?'Редактировать':'Новая запись';
@@ -367,7 +393,7 @@ $('entry-form').onsubmit=async ev=>{
  ev.preventDefault();if(!writable())return;
  const f=ev.target;
  try{
-  const entry={title:f.elements.title.value,description:f.elements.description.value,body:f.elements.body.value};
+  const entry={title:f.elements.title.value,description:f.elements.description.value,body:f.elements.body.value,tags:parseTags(f.elements.tags.value)};
   if(campaign.role==='master')entry.visibility=f.elements.hidden.checked?'master':'published';
   let id=editing?.id;
   if(editing)check(await base().update(entry).eq('id',id));

@@ -8,6 +8,7 @@ const expected=[
   ['', '<title>WreckLib'],
   ['app.js', 'signInWithOAuth'],
   ['markdown.js', 'renderMarkdown'],
+  ['tags.js', 'filterByTag'],
   ['style.css', '--gold'],
   ['wrecktrack-visual.css', 'font-family:"Neuzeit Antiqua"']
 ];

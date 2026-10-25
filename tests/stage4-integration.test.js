@@ -7,7 +7,8 @@ test('Editor, live preview and authorized search are connected',()=>{
  for(const id of ['entry-search','search-results','markdown-source','markdown-preview-content','wiki-picker'])
   assert.ok(html.includes('id="'+id+'"'),id);
  assert.match(app,/renderMarkdown\(e\.body,entries\)/);
- assert.match(app,/searchEntries\(entries,query,40\)/);
+ assert.match(app,/const subset=filterByTag\(entries,tag\)/);
+ assert.match(app,/searchEntries\(subset,query,40\)/);
  assert.match(app,/findBacklinks\(e\.id,entries\)/);
  assert.match(app,/const found=entries\.find\(e=>e\.id===id\)/);
  assert.match(app,/navigateToVisibleEntry/);
