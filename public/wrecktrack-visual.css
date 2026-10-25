@@ -206,3 +206,8 @@ dialog .actions{position:sticky;bottom:-28px;background:var(--panel);padding:12p
  .page-tools{width:100%}
  .page-tools .button{flex:1}
 }
+
+/* Stage 5B import confirmation, existing WreckTrack tokens. */
+#import-dialog{max-width:min(93vw,600px)}
+#import-summary{white-space:pre-wrap;overflow-wrap:anywhere}
+#export-backup{font-size:13px}

@@ -8,16 +8,14 @@ insert into public.campaigns(id,name,owner_id) values ('b9111111-1111-4111-8111-
 insert into public.memberships(campaign_id,user_id,role) values
 ('b9111111-1111-4111-8111-111111111111','a9111111-1111-4111-8111-111111111111','master'),
 ('b9111111-1111-4111-8111-111111111111','a9222222-2222-4222-8222-222222222222','viewer');
-insert into public.entries(id,campaign_id,parent_id,kind,title,created_by) values
-('c9111111-1111-4111-8111-111111111111','b9111111-1111-4111-8111-111111111111',null,'folder','Folder','a9111111-1111-4111-8111-111111111111'),
-('c9222222-2222-4222-8222-222222222222','b9111111-1111-4111-8111-111111111111','c9111111-1111-4111-8111-111111111111','article','Published child','a9111111-1111-4111-8111-111111111111'),
-('c9333333-3333-4333-8333-333333333333','b9111111-1111-4111-8111-111111111111','c9111111-1111-4111-8111-111111111111','article','Individually deleted child','a9111111-1111-4111-8111-111111111111');
+insert into public.entries(id,campaign_id,parent_id,kind,title,created_by,image_path) values
+('c9111111-1111-4111-8111-111111111111','b9111111-1111-4111-8111-111111111111',null,'folder','Folder','a9111111-1111-4111-8111-111111111111',null),
+('c9222222-2222-4222-8222-222222222222','b9111111-1111-4111-8111-111111111111','c9111111-1111-4111-8111-111111111111','article','Published child','a9111111-1111-4111-8111-111111111111','b9111111-1111-4111-8111-111111111111/photo.webp'),
+('c9333333-3333-4333-8333-333333333333','b9111111-1111-4111-8111-111111111111','c9111111-1111-4111-8111-111111111111','article','Individually deleted child','a9111111-1111-4111-8111-111111111111',null);
 set local role authenticated;
 select set_config('request.jwt.claim.sub','a9111111-1111-4111-8111-111111111111',true);
 do $$declare token text;response jsonb;blocked boolean:=false;modified integer;begin
  token:=public.rotate_campaign_share('b9111111-1111-4111-8111-111111111111');
- update public.entries set image_path='b9111111-1111-4111-8111-111111111111/photo.webp'
- where id='c9222222-2222-4222-8222-222222222222';
  if public.shared_image_path(token,'c9222222-2222-4222-8222-222222222222')
  is distinct from 'b9111111-1111-4111-8111-111111111111/photo.webp'
  then raise exception 'Published image path missing before deletion';end if;
@@ -34,8 +32,10 @@ do $$declare token text;response jsonb;blocked boolean:=false;modified integer;b
  if (select count(*) from public.entries where campaign_id='b9111111-1111-4111-8111-111111111111')<>0 then raise exception 'Master sees trash in active tree';end if;
  if (select count(*) from public.list_trash('b9111111-1111-4111-8111-111111111111'))<>2 then raise exception 'Trash does not contain two explicit tombstones';end if;
  -- RLS silently updates 0 rows when trying to undelete via direct table UPDATE.
- update public.entries set deleted_at=null where id='c9111111-1111-4111-8111-111111111111';
- get diagnostics modified=row_count;
+ begin
+  update public.entries set deleted_at=null where id='c9111111-1111-4111-8111-111111111111';
+  get diagnostics modified=row_count;
+ exception when insufficient_privilege then modified:=0;end;
  if modified<>0 then raise exception 'Direct undelete changed a row';end if;
  blocked:=false;
  begin perform public.restore_entry('c9333333-3333-4333-8333-333333333333');exception when others then blocked:=true;end;

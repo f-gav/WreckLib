@@ -3,6 +3,7 @@ import {SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY} from './config.js';
 import {renderMarkdown,searchEntries,findBacklinks,escapeHtml} from './markdown.js';
 import {parseTags,collectVisibleTags,filterByTag,normalizedTag} from './tags.js';
 import {serializeCampaignExport,exportFilename} from './export.js';
+import {validateImportSnapshot,buildImageBackup,extractImageBlob,MAX_ARCHIVE_BYTES} from './import.js';
 
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -11,7 +12,7 @@ const kinds={folder:'Папка',person:'Персонаж',location:'Локац�
 const viewToken=new URL(location.href).searchParams.get('share');
 const notice=x=>{$('notice').textContent=x||''};
 const check=({data,error})=>{if(error)throw error;return data};
-let client,account=null,campaigns=[],campaign=null,entries=[],selected=null,editing=null,parentId=null,imageUrl=null,moveTargetId=null,historyEntryId=null,historyRevisionId=null;
+let client,account=null,campaigns=[],campaign=null,entries=[],selected=null,editing=null,parentId=null,imageUrl=null,moveTargetId=null,historyEntryId=null,historyRevisionId=null,importData=null;
 const collapsedFolders=new Set();
 const writable=()=>campaign?.role==='master'||campaign?.role==='editor';
 const base=()=>client.from('entries');
@@ -121,7 +122,7 @@ function showInside(){
  $('new-folder').hidden=$('new-card').hidden=!writable();
  $('invite-panel').hidden=$('share-panel').hidden=$('trash-panel').hidden=campaign.role!=='master';
  $('readonly-indicator').hidden=writable();
- $('export-json').hidden=campaign.role!=='master';
+ $('export-json').hidden=$('export-backup').hidden=campaign.role!=='master';
  $('share-link').textContent='';
 }
 
@@ -401,17 +402,27 @@ $('entry-form').onsubmit=async ev=>{
   const entry={title:f.elements.title.value,description:f.elements.description.value,body:f.elements.body.value,tags:parseTags(f.elements.tags.value)};
   if(campaign.role==='master')entry.visibility=f.elements.hidden.checked?'master':'published';
   let id=editing?.id;
-  if(editing)check(await base().update(entry).eq('id',id));
-  else{
+  if(editing){
+   check(await client.rpc('update_entry_if_unchanged',{
+    p_entry_id:id,p_expected_updated_at:editing.updated_at,
+    p_title:entry.title,p_description:entry.description,p_body:entry.body,
+    p_tags:entry.tags,p_visibility:campaign.role==='master'?entry.visibility:null,
+    p_secret_body:campaign.role==='master'?f.elements.secret_body.value:null
+   }));
+  }else{
    Object.assign(entry,{campaign_id:campaign.id,parent_id:parentId,kind:f.elements.kind.value,created_by:account.id});
    id=check(await base().insert(entry).select('id').single()).id;
-  }
-  if(campaign.role==='master'){
-   check(await client.from('entry_secrets').upsert({entry_id:id,secret_body:f.elements.secret_body.value}));
+   if(campaign.role==='master'){
+    check(await client.from('entry_secrets').upsert({entry_id:id,secret_body:f.elements.secret_body.value}));
+   }
   }
   $('editor').close();await refresh();selected=entries.find(e=>e.id===id);
   tree();await detail();notice('Сохранено');
- }catch(err){notice(err.message)}
+ }catch(err){
+  notice((err.message||'').includes('EDIT_CONFLICT')
+   ?'Конфликт редактирования: запись изменена в другой вкладке. Скопируйте черновик перед обновлением страницы — ваши правки не сохранены.'
+   :err.message);
+ }
 };
 $('invite-form').onsubmit=async event=>{
  event.preventDefault();if(campaign?.role!=='master')return;
@@ -607,10 +618,10 @@ async function fetchAllCampaignEntries(cid){
  }
  throw new Error('Слишком много материалов для одного JSON-экспорта');
 }
-async function exportCampaignJSON(){
+async function exportCampaignJSON(withImages=false){
  if(!account||campaign?.role!=='master')return;
  const currentCampaign={id:campaign.id,name:campaign.name,role:campaign.role};
- const button=$('export-json');
+ const button=withImages?$('export-backup'):$('export-json');
  button.disabled=true;
  try{
   // Ensure the Master role is current rather than trusting cached client state.
@@ -626,17 +637,92 @@ async function exportCampaignJSON(){
    }
   }
   check(await client.rpc('list_campaign_members',{p_campaign_id:currentCampaign.id}));
-  const json=serializeCampaignExport(currentCampaign,all,secrets,new Date().toISOString());
+  let json;
+  if(withImages){
+   const bundle=await buildImageBackup(currentCampaign,all,secrets,async path=>
+    check(await client.storage.from('wrecklib-images').download(path)));
+   json=JSON.stringify(bundle,null,2);
+  }else json=serializeCampaignExport(currentCampaign,all,secrets,new Date().toISOString());
   const url=URL.createObjectURL(new Blob([json],{type:'application/json;charset=utf-8'}));
   const a=document.createElement('a');
   a.href=url;a.download=exportFilename(currentCampaign.name);
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  notice('JSON-экспорт подготовлен. Файлы изображений и история версий не включены.');
+  notice('JSON-экспорт подготовлен. История версий и материалы корзины не включены.');
  }catch(err){notice('Ошибка JSON-экспорта: '+err.message)}
  finally{button.disabled=false}
 }
-$('export-json').onclick=exportCampaignJSON;
+$('export-json').onclick=()=>exportCampaignJSON(false);
+$('export-backup').onclick=()=>exportCampaignJSON(true);
+
+
+// No import writes occur before preview and explicit confirmation.
+$('import-choose').onclick=()=>{if(account)$('import-file').click()};
+$('import-file').onchange=async event=>{
+ importData=null;const file=event.target.files?.[0];event.target.value='';
+ if(!file)return;
+ try{
+  if(file.size>MAX_ARCHIVE_BYTES)throw Error('JSON-архив превышает 36 МБ');
+  const data=JSON.parse(await file.text());
+  const info=validateImportSnapshot(data);
+  importData=data;
+  $('import-summary').textContent='Мир: '+info.name+'; записей: '+info.entries+
+   '; папок: '+info.folders+'; изображений: '+info.images+
+   '. Создаётся новая кампания. Архив без файлов изображений восстановит только тексты.';
+  $('import-confirm').disabled=false;
+  $('import-dialog').showModal();
+ }catch(err){notice('Проверка JSON: '+err.message)}
+};
+$('import-cancel').onclick=()=>$('import-dialog').close();
+$('import-dialog').addEventListener('close',()=>{importData=null});
+$('import-confirm').onclick=async()=>{
+ if(!account||!importData)return;
+ const data=importData;
+ $('import-confirm').disabled=true;
+ let importedCampaign=null,restoredImages=0;
+ try{
+  validateImportSnapshot(data);
+  const result=check(await client.rpc('import_campaign_snapshot',{p_payload:{
+   format:data.format,schema_version:1,campaign:data.campaign,entries:data.entries
+  }}));
+  importedCampaign=result.campaign_id;
+  if(data.image_assets){
+   // Fetch all new timestamps in small pages to avoid truncation.
+   const fresh=new Map();
+   for(let offset=0;offset<data.entries.length;offset+=200){
+    const ids=data.entries.slice(offset,offset+200).map(e=>result.id_map[e.id]);
+    const subset=check(await client.from('entries').select('id,updated_at').in('id',ids));
+    for(const e of subset)fresh.set(e.id,e.updated_at);
+   }
+   for(const entry of data.entries){
+    const oldPath=entry.image_path,asset=data.image_assets[oldPath];
+    if(!oldPath||!asset)continue;
+    const id=result.id_map[entry.id],expected=fresh.get(id);
+    if(!id||!expected)throw Error('Нельзя найти импортированную карточку');
+    const path=importedCampaign+'/'+crypto.randomUUID()+'.webp';
+    const blob=extractImageBlob(asset);
+    check(await client.storage.from('wrecklib-images').upload(path,blob,{
+     contentType:'image/webp',upsert:false
+    }));
+    try{
+     const timestamp=check(await client.rpc('attach_entry_image_if_unchanged',{
+      p_entry_id:id,p_expected_updated_at:expected,p_image_path:path
+     }));
+     fresh.set(id,timestamp);restoredImages++;
+    }catch(e){
+     await client.storage.from('wrecklib-images').remove([path]);throw e;
+    }
+   }
+  }
+  $('import-dialog').close();importData=null;
+  await home();
+  notice('Импортировано '+result.entry_count+' записей, изображений: '+restoredImages+'. Новая кампания создана.');
+ }catch(err){
+  if(importedCampaign)notice('Новая кампания создана, но восстановление изображений прервалось после '+restoredImages+
+   ' файлов. Материалы сохранены, ошибка: '+err.message);
+  else notice('Импорт отменён без создания кампании: '+err.message);
+ }finally{$('import-confirm').disabled=false}
+};
 
 async function upload(ev){
  const file=ev.target.files?.[0];if(!file||!selected||!writable())return;
@@ -650,7 +736,9 @@ async function upload(ev){
   if(!blob||blob.size>3145728)throw Error('Изображение слишком большое');
   const path=campaign.id+'/'+crypto.randomUUID()+'.webp';
   check(await client.storage.from('wrecklib-images').upload(path,blob,{contentType:'image/webp',upsert:false}));
-  try{check(await base().update({image_path:path}).eq('id',selected.id))}
+  try{check(await client.rpc('attach_entry_image_if_unchanged',{
+   p_entry_id:selected.id,p_expected_updated_at:selected.updated_at,p_image_path:path
+  }))}
   catch(e){await client.storage.from('wrecklib-images').remove([path]);throw e}
   await refresh();notice('Изображение загружено');
  }catch(err){notice(err.message)}

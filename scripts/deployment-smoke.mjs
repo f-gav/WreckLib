@@ -10,6 +10,7 @@ const expected=[
   ['markdown.js', 'renderMarkdown'],
   ['tags.js', 'filterByTag'],
   ['export.js', 'serializeCampaignExport'],
+  ['import.js', 'validateImportSnapshot'],
   ['style.css', '--gold'],
   ['wrecktrack-visual.css', 'font-family:"Neuzeit Antiqua"']
 ];
