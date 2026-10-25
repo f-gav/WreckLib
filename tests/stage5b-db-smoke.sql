@@ -27,7 +27,7 @@ begin
  if (select parent_id from public.entries where id=child)<>root then raise exception 'Parent remap failed';end if;
  if (select secret_body from public.entry_secrets where entry_id=child)<>'Master-only notes' then raise exception 'Secret missing';end if;
  if (select image_path from public.entries where id=child) is not null then raise exception 'External image path imported';end if;
- if (select count(*) from private.entry_revisions where entry_id=child)<>1 then raise exception 'Revision trigger missing';end if;
+ if (select count(*) from public.list_entry_revisions(child))<>1 then raise exception 'Revision trigger missing';end if;
  original_version:=(select updated_at from public.entries where id=child);
  version2:=public.update_entry_if_unchanged(child,original_version,'New story','desc','B',array['new'],'published','Updated notes');
  if version2<=original_version then raise exception 'Updated timestamp did not advance';end if;
