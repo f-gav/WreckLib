@@ -1,39 +1,39 @@
-# WreckLib — prototype checkpoint (2026-10-25)
+# WreckLib — состояние прототипа на 25.10.2026
 
-## Completed and verified
-- Dedicated Supabase project: nwlthntpkmgrhmejhfqk (Free, PostgreSQL 17).
-- Applied migrations: wrecklib_initial_schema and wrecklib_prototype_hardening.
-- Five application tables with RLS; eleven public policies; one private image bucket.
-- RLS grants and image path campaign scope, index coverage and updated_at trigger.
-- Browser-facing config uses a public sb_publishable key, never service_role.
-- Client paths for /WreckLib/ corrected; invitation query kept through email Magic Link.
-- GitHub CI green on commit b5cfc94399107d2229210667e27aba905ce7b60d.
-- Deploy workflow exists, but its configure-pages step fails because Pages is disabled.
+## Этап 1: инфраструктура и безопасность
+**Подтверждено в отдельном Supabase WreckLib (`nwlthntpkmgrhmejhfqk`):**
+- Миграции `wrecklib_initial_schema`, `wrecklib_prototype_hardening`, `fix_parent_entry_rls_reference`, `restrict_application_table_grants`.
+- 5 таблиц, RLS и приватный бакет `wrecklib-images`.
+- Клиент на publishable API key, без секретного ключа. GitHub CI проходит.
+- Исправлена RLS-проверка родительской папки для создания вложенных карточек.
+- Отозваны слишком широкие стандартные права, включая опасный `TRUNCATE`, у `anon` и `authenticated`; для `authenticated` выданы только нужные DML-права.
+- Транзакционный SQL-smoke прошёл: мастер видит секреты, игрок+ создаёт вложенную запись, игрок не может её создавать, внешнему участнику записи недоступны, скрытые дочерние записи не раскрываются. Искусственные аккаунты удалены откатом.
+- Тестовый сценарий хранится в `tests/rls-smoke.sql` и выполняется только в контролируемом окружении.
 
-## External configuration required (one-time)
-1. GitHub: https://github.com/f-gav/WreckLib/settings/pages
-   Select **Build and deployment → Source → GitHub Actions**.
-2. Supabase: https://supabase.com/dashboard/project/nwlthntpkmgrhmejhfqk/auth/url-configuration
-   Set Site URL to **https://f-gav.github.io/WreckLib/**
-   Add redirect URLs:
-   - https://f-gav.github.io/WreckLib/
-   - https://f-gav.github.io/WreckLib/**
-3. Rerun https://github.com/f-gav/WreckLib/actions/workflows/deploy.yml or push a new commit.
+**Пока не подтверждено:**
+- Публикация GitHub Pages: `configure-pages` возвращает 404, потому что Pages не включён для репозитория.
+- Browser E2E: Magic Link, возврат в приложение, создание материалов и загрузка WebP.
+- Redirect URLs и Site URL в Supabase Auth: доступные API не дают прочитать настройки в панели. В живой базе нет ни одного реального auth-пользователя.
+- Взаимодействие двух реальных почтовых аккаунтов по приглашению.
 
-## Required smoke tests before stage 1 can be considered done
-- Deployment succeeds and /WreckLib/ loads CSS and JS without 404 errors.
-- User signs in through email Magic Link and signs out.
-- Create campaign, folder, record, secret notes; reload page; persisted.
-- Upload WebP, refresh and read from private storage.
-- Invite another verified email (role player); ensure invitation survives auth callback.
-- Confirm player cannot view secrets or hidden articles; editor cannot reveal them via REST.
-- Check unauthorized anonymous reads/writes are rejected.
-- Record test evidence before enabling live use.
+## Действия в настройках, необходимые от владельца
+1. Открыть https://github.com/f-gav/WreckLib/settings/pages → Build and deployment → Source → **GitHub Actions**.
+2. Открыть https://supabase.com/dashboard/project/nwlthntpkmgrhmejhfqk/auth/url-configuration → Site URL = `https://f-gav.github.io/WreckLib/`.
+3. В том же разделе добавить Redirect URLs: `https://f-gav.github.io/WreckLib/` и `https://f-gav.github.io/WreckLib/**`.
+4. Повторно запустить workflow `Deploy WreckLib`; провести ручной вход по почте и проверить пробную кампанию и WebP.
 
-## Next sequence after the prototype
-Stage 2: reproduce the current WreckTrack look precisely (gold/blue/red/purple themes, fonts, topbar, adaptive components) without changing WreckTrack.
-Stage 3+: advanced hierarchy, role tests, Markdown, backlinks, backups, trash and E2E.
+## Условия завершения этапа 1
+- GitHub Pages действительно публикует страницу и загружает CSS, JS, Supabase SDK.
+- В реальном браузере работают вход, выход, создание кампании и карточки, обновление, картинка и приглашение.
+- Подтверждён межпользовательский доступ и отсутствие секретов в REST/Storage для игроков.
+- Не выявлено нерешённых критических замечаний безопасности.
+- Протокол тестирования зафиксирован.
 
-## Boundaries
-Do not modify WreckTrack or At your service! repositories or databases.
-Historical Cloudflare worker and D1 files are not active.
+## Этап 2, ПОСЛЕ завершения этапа 1
+Точный перенос визуального языка текущего WreckTrack в **WreckLib**, не меняя репозиторий WreckTrack: его цветовые переменные (золото/синий/красный/фиолетовый), шрифты, типографика, верхняя панель, карточки, формы, модальные окна и адаптивная компоновка. До полноценного прототипа не вносить несогласованные функциональные расширения.
+
+## Безопасность
+Результат Supabase Security Advisor всё ещё отмечает намеренно открытые для authenticated RPC-функции `create_campaign` и `accept_invitation` с SECURITY DEFINER. Каждая проверяет auth.uid(), а приглашение также сверяет email. Перед публичным запуском проведём дополнительный аудит их действий. Проверки локальных пользователей в SQL — не замена браузерному E2E.
+
+## Изоляция
+Разработка ведётся исключительно в `f-gav/WreckLib` и отдельном Supabase WreckLib. WreckTrack и At your service! не изменяются. Исторические файлы Cloudflare не предназначены для запуска.
