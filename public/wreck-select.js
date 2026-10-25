@@ -18,8 +18,10 @@ function installGlobalHandlers(){
   for(const control of activeControls)control.position();
  });
  // Closing on scroll also prevents menus drifting away from their source on mobile.
- document.addEventListener('scroll',()=>{
-  for(const control of activeControls)control.close(false);
+ document.addEventListener('scroll',event=>{
+  for(const control of activeControls){
+   if(!control.wrapper.contains(event.target))control.close(false);
+  }
  },true);
 }
 
