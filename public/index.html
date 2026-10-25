@@ -52,6 +52,8 @@
   <h1>Ваши кампании</h1>
   <p class="lead">Создайте новый мир или откройте кампанию, в которую вас пригласили.</p>
   <div id="campaigns" class="cards"></div>
+  <button class="button" type="button" id="import-choose">Импорт JSON в новую кампанию</button>
+  <input type="file" id="import-file" accept=".json,application/json" hidden>
   <form id="campaign-form"><input name="name" required maxlength="100" placeholder="Название кампании"><button class="button primary" type="submit">+ Создать кампанию</button></form>
 </section>
 <section id="inside" hidden>
@@ -59,6 +61,7 @@
     <div><button class="button back" id="back" type="button">← Все кампании</button><p id="role" class="eyebrow"></p><h1 id="campaign-name"></h1></div>
     <div class="page-tools">
       <button class="button" id="export-json" type="button" hidden>Экспорт JSON</button>
+      <button class="button" id="export-backup" type="button" hidden>Резервная копия + изображения</button>
       <span id="readonly-indicator" class="readonly-badge" hidden>Только просмотр</span>
     </div>
   </div>
@@ -170,6 +173,15 @@
   <div class="actions">
     <button class="button" id="history-close" type="button">Закрыть</button>
     <button class="button primary" id="history-restore" type="button" disabled>Восстановить версию</button>
+  </div>
+</dialog>
+<dialog id="import-dialog" aria-labelledby="import-title">
+  <h2 id="import-title">Предварительная проверка импорта</h2>
+  <p id="import-summary" class="muted"></p>
+  <p class="muted">Все записи попадут в новую кампанию, существующие не изменятся. Изображения восстанавливаются отдельно после создания кампании. Если загрузка одного из них прервётся, уже созданные материалы сохранятся.</p>
+  <div class="actions">
+    <button class="button" id="import-cancel" type="button">Отмена</button>
+    <button class="button primary" id="import-confirm" type="button">Создать кампанию из архива</button>
   </div>
 </dialog>
 <script type="module" src="./app.js"></script>
