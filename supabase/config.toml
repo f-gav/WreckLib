@@ -1,0 +1,4 @@
+# WreckLib Supabase settings. Deployed edge function intentionally permits guest requests
+# and authorizes them with a 256-bit share token verified by a restricted SQL RPC.
+[functions.shared-image]
+verify_jwt = false
