@@ -57,7 +57,10 @@
 <section id="inside" hidden>
   <div class="page-head">
     <div><button class="button back" id="back" type="button">← Все кампании</button><p id="role" class="eyebrow"></p><h1 id="campaign-name"></h1></div>
-    <span id="readonly-indicator" class="readonly-badge" hidden>Только просмотр</span>
+    <div class="page-tools">
+      <button class="button" id="export-json" type="button" hidden>Экспорт JSON</button>
+      <span id="readonly-indicator" class="readonly-badge" hidden>Только просмотр</span>
+    </div>
   </div>
   <nav class="mobile-view-switch" aria-label="Переключение панелей">
     <button type="button" class="mobile-view-button is-active" id="show-tree" aria-pressed="true">Разделы</button>
@@ -155,6 +158,19 @@
       <button class="button primary" type="submit" id="move-submit">Переместить</button>
     </div>
   </form>
+</dialog>
+<dialog id="history-dialog" aria-labelledby="history-title">
+  <p class="eyebrow">ИСТОРИЯ WRECKLIB</p>
+  <h2 id="history-title">История статьи</h2>
+  <p class="muted">История текста и тегов. Секретные заметки, изображения, папки и видимость не откатываются.</p>
+  <div class="history-layout">
+    <div id="history-list" class="history-list" aria-live="polite"></div>
+    <div id="history-preview" class="history-preview markdown-body"><p class="muted">Выберите версию.</p></div>
+  </div>
+  <div class="actions">
+    <button class="button" id="history-close" type="button">Закрыть</button>
+    <button class="button primary" id="history-restore" type="button" disabled>Восстановить версию</button>
+  </div>
 </dialog>
 <script type="module" src="./app.js"></script>
 </body>
