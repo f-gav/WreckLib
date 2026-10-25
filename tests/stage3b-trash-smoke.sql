@@ -16,12 +16,19 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','a9111111-1111-4111-8111-111111111111',true);
 do $$declare token text;response jsonb;blocked boolean:=false;modified integer;begin
  token:=public.rotate_campaign_share('b9111111-1111-4111-8111-111111111111');
+ update public.entries set image_path='b9111111-1111-4111-8111-111111111111/photo.webp'
+ where id='c9222222-2222-4222-8222-222222222222';
+ if public.shared_image_path(token,'c9222222-2222-4222-8222-222222222222')
+ is distinct from 'b9111111-1111-4111-8111-111111111111/photo.webp'
+ then raise exception 'Published image path missing before deletion';end if;
  -- The direct REST update has to fail for an active row.
  begin update public.entries set deleted_at=now() where id='c9222222-2222-4222-8222-222222222222';exception when others then blocked:=true;end;
  if not blocked then raise exception 'Client could set tombstone';end if;
  perform public.trash_entry('c9333333-3333-4333-8333-333333333333');
  perform public.trash_entry('c9111111-1111-4111-8111-111111111111');
  if private.visible_entry('c9222222-2222-4222-8222-222222222222') then raise exception 'Child of trash still visible';end if;
+ if public.shared_image_path(token,'c9222222-2222-4222-8222-222222222222') is not null
+ then raise exception 'Guest image path leaked after trash';end if;
  response:=public.read_shared_campaign(token);
  if jsonb_array_length(response->'entries')<>0 then raise exception 'Guest can see trashed subtree';end if;
  if (select count(*) from public.entries where campaign_id='b9111111-1111-4111-8111-111111111111')<>0 then raise exception 'Master sees trash in active tree';end if;
